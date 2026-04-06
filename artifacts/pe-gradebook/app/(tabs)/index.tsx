@@ -317,11 +317,11 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, color: "#e2e8f0" },
 
   statsScroll: { borderBottomWidth: 1, flexShrink: 0 },
-  statsContent: { paddingHorizontal: 14, paddingVertical: 10, gap: 8, flexDirection: "row" },
+  statsContent: { paddingHorizontal: 14, paddingVertical: 5, gap: 8, flexDirection: "row" },
 
   sortScroll: { borderBottomWidth: 1, flexShrink: 0 },
-  sortContent: { paddingHorizontal: 14, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  sortBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  sortContent: { paddingHorizontal: 14, paddingVertical: 4, gap: 6, flexDirection: "row" },
+  sortBtn: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
   sortBtnText: { fontSize: 12, fontWeight: "600" },
 
   listContent: { padding: 14 },
