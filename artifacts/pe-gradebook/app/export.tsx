@@ -104,7 +104,7 @@ export default function ExportScreen() {
         // Native: save to cache then share
         const uri = (FileSystem.cacheDirectory ?? "") + xlsxFileName;
         await FileSystem.writeAsStringAsync(uri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: "base64" as any,
         });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
