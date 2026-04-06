@@ -316,12 +316,12 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: "#e2e8f0" },
 
-  statsScroll: { borderBottomWidth: 1, flexShrink: 0 },
-  statsContent: { paddingHorizontal: 12, paddingVertical: 3, gap: 6, flexDirection: "row" },
+  statsScroll: { borderBottomWidth: 1, flexShrink: 0, flexGrow: 0, height: 50 },
+  statsContent: { paddingHorizontal: 12, paddingVertical: 4, gap: 6, flexDirection: "row", alignItems: "center" },
 
-  sortScroll: { borderBottomWidth: 1, flexShrink: 0 },
-  sortContent: { paddingHorizontal: 12, paddingVertical: 3, gap: 5, flexDirection: "row" },
-  sortBtn: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  sortScroll: { borderBottomWidth: 1, flexShrink: 0, flexGrow: 0, height: 34 },
+  sortContent: { paddingHorizontal: 12, paddingVertical: 0, gap: 5, flexDirection: "row", alignItems: "center" },
+  sortBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   sortBtnText: { fontSize: 12, fontWeight: "600" },
 
   listContent: { padding: 14 },
