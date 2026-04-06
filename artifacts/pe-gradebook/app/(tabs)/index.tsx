@@ -144,7 +144,7 @@ export default function GradebookScreen() {
               <Feather name="activity" size={18} color="#fff" />
             </View>
             <View>
-              <Text style={styles.headerTitle}>Mile Run</Text>
+              <Text style={styles.headerTitle}>Mile Run Grader</Text>
               {editingClass ? (
                 <TextInput
                   autoFocus
