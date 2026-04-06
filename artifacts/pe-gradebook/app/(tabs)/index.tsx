@@ -246,6 +246,7 @@ export default function GradebookScreen() {
 
       {/* List */}
       <FlatList
+        style={{ flex: 1 }}
         data={sorted}
         keyExtractor={item => String(item.id)}
         contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad + 100 }]}
@@ -315,10 +316,10 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: "#e2e8f0" },
 
-  statsScroll: { borderBottomWidth: 1 },
+  statsScroll: { borderBottomWidth: 1, flexShrink: 0 },
   statsContent: { paddingHorizontal: 14, paddingVertical: 10, gap: 8, flexDirection: "row" },
 
-  sortScroll: { borderBottomWidth: 1 },
+  sortScroll: { borderBottomWidth: 1, flexShrink: 0 },
   sortContent: { paddingHorizontal: 14, paddingVertical: 8, gap: 6, flexDirection: "row" },
   sortBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   sortBtnText: { fontSize: 12, fontWeight: "600" },
