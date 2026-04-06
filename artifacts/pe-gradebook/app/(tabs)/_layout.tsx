@@ -4,12 +4,10 @@ import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
-import { QUICK_REFERENCE_PDF_URL } from "@/constants/urls";
 
 function NativeTabLayout() {
   return (
@@ -18,9 +16,7 @@ function NativeTabLayout() {
         <Icon sf={{ default: "list.clipboard", selected: "list.clipboard.fill" }} />
         <Label>Gradebook</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="quick-reference" onPress={() => {
-        Linking.openURL(QUICK_REFERENCE_PDF_URL);
-      }}>
+      <NativeTabs.Trigger name="quick-reference">
         <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
         <Label>Quick Reference</Label>
       </NativeTabs.Trigger>
@@ -80,12 +76,6 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="quick-reference"
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            Linking.openURL(QUICK_REFERENCE_PDF_URL);
-          },
-        }}
         options={{
           title: "Quick Reference",
           tabBarIcon: ({ color }) =>
