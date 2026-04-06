@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
@@ -67,17 +66,24 @@ export default function GradebookScreen() {
   const handleImport = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["text/csv", "text/comma-separated-values", "application/csv", "*/*"],
+        type: "*/*",
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
       const name = (asset.name || "").toLowerCase();
-      if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xls") && !name.endsWith(".txt")) {
-        Alert.alert("Unsupported File", "Please select a .csv file.");
+      if (!name.endsWith(".csv") && !name.endsWith(".txt") && !name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+        Alert.alert("Unsupported File", "Please select a .csv or .txt file exported from a spreadsheet app.", [{ text: "OK" }]);
         return;
       }
-      const text = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      // Use fetch() which reliably handles all URI types (file://, content://, etc.)
+      const response = await fetch(asset.uri);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      if (!text || !text.trim()) {
+        Alert.alert("Import Failed", "The file appears to be empty.");
+        return;
+      }
       const { count, error } = importCSV(text);
       if (error) {
         Alert.alert("Import Failed", error);
@@ -86,7 +92,7 @@ export default function GradebookScreen() {
         Alert.alert("Imported", `${count} student${count !== 1 ? "s" : ""} imported successfully.`);
       }
     } catch (e) {
-      Alert.alert("Error", "Could not read the file. Make sure it is a valid CSV.");
+      Alert.alert("Import Error", "Could not read the selected file. Make sure it is a plain .csv file (not an Excel format).");
     }
   }, [importCSV]);
 
