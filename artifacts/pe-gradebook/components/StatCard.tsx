@@ -27,22 +27,22 @@ export function StatCard({ label, value, accentColor }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
-    minWidth: 70,
+    minWidth: 58,
     alignItems: "center",
   },
   label: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 2,
+    letterSpacing: 0.5,
+    marginBottom: 1,
   },
   value: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
