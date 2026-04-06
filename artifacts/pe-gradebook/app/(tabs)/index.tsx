@@ -1,4 +1,6 @@
 import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
@@ -27,7 +29,7 @@ type SortField = "rollCall" | "lastName" | "firstName" | "score";
 export default function GradebookScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, ready, className, setClassName, addRow, deleteRow, updateRow, clearAll, withScores, stats } = useGradebook();
+  const { rows, ready, className, setClassName, addRow, deleteRow, updateRow, clearAll, importCSV, withScores, stats } = useGradebook();
 
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortField>("rollCall");
@@ -61,6 +63,32 @@ export default function GradebookScreen() {
       return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
     });
   }, [withScores, search, sortCol, sortDir]);
+
+  const handleImport = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/csv", "text/comma-separated-values", "application/csv", "*/*"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const name = (asset.name || "").toLowerCase();
+      if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xls") && !name.endsWith(".txt")) {
+        Alert.alert("Unsupported File", "Please select a .csv file.");
+        return;
+      }
+      const text = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const { count, error } = importCSV(text);
+      if (error) {
+        Alert.alert("Import Failed", error);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Imported", `${count} student${count !== 1 ? "s" : ""} imported successfully.`);
+      }
+    } catch (e) {
+      Alert.alert("Error", "Could not read the file. Make sure it is a valid CSV.");
+    }
+  }, [importCSV]);
 
   const handleClearAll = () => {
     Alert.alert(
@@ -131,6 +159,12 @@ export default function GradebookScreen() {
             </View>
           </View>
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={handleImport}
+              style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
+            >
+              <Feather name="upload" size={16} color="#fff" />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); addRow(); }}
               style={[styles.actionBtn, { backgroundColor: colors.primary }]}
