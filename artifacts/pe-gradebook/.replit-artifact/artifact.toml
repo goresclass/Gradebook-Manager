@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "PE Gradebook"
+version = "1.0.0"
+id = "artifacts/pe-gradebook"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 19289
+
+[services.development]
+run = "pnpm --filter @workspace/pe-gradebook run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pe-gradebook", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/pe-gradebook", "run", "serve" ]
+
+[services.env]
+PORT = "19289"
+BASE_PATH = "/"
