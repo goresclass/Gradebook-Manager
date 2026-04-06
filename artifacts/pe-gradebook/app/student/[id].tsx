@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,6 +20,56 @@ import { useGradebook, StudentRow } from "@/context/GradebookContext";
 import { useColors } from "@/hooks/useColors";
 import { SCORE_CFG, SPECIAL, calcScore, formatMMSS, getSpecial, parseMMSS } from "@/utils/grading";
 
+// Field must be a top-level component (not defined inside the screen)
+// so React preserves its identity across re-renders and the keyboard stays open.
+type FieldProps = {
+  label: string;
+  field: keyof StudentRow;
+  placeholder?: string;
+  mono?: boolean;
+  hint?: string;
+  value: string;
+  onChangeText: (field: keyof StudentRow, val: string) => void;
+  borderColor: string;
+  labelColor: string;
+  inputColor: string;
+  hintColor: string;
+};
+
+function Field({
+  label,
+  field,
+  placeholder,
+  mono,
+  hint,
+  value,
+  onChangeText,
+  borderColor,
+  labelColor,
+  inputColor,
+  hintColor,
+}: FieldProps) {
+  return (
+    <View style={[styles.fieldGroup, { borderColor }]}>
+      <Text style={[styles.fieldLabel, { color: labelColor }]}>{label}</Text>
+      <TextInput
+        style={[
+          styles.fieldInput,
+          { color: inputColor, fontFamily: mono ? "monospace" : undefined },
+        ]}
+        value={value}
+        onChangeText={val => onChangeText(field, val)}
+        placeholder={placeholder}
+        placeholderTextColor={hintColor}
+        autoCapitalize={mono ? "none" : "words"}
+        autoCorrect={false}
+        spellCheck={false}
+      />
+      {hint ? <Text style={[styles.fieldHint, { color: hintColor }]}>{hint}</Text> : null}
+    </View>
+  );
+}
+
 export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors() as Record<string, string>;
@@ -27,6 +77,11 @@ export default function StudentDetailScreen() {
   const { rows, updateRow, deleteRow } = useGradebook();
   const numId = parseInt(id, 10);
   const row = rows.find(r => r.id === numId);
+
+  const handleChange = React.useCallback(
+    (field: keyof StudentRow, val: string) => updateRow(numId, field, val),
+    [numId, updateRow]
+  );
 
   if (!row) {
     return (
@@ -44,7 +99,6 @@ export default function StudentDetailScreen() {
   const sp = getSpecial(row.mileTime);
   const mileSeconds = parseMMSS(row.mileTime);
   const ttbSeconds = parseMMSS(row.ttb);
-
   const cfg = score !== null ? SCORE_CFG[score] : null;
 
   const handleDelete = () => {
@@ -62,45 +116,23 @@ export default function StudentDetailScreen() {
     ]);
   };
 
-  const Field = ({
-    label,
-    field,
-    placeholder,
-    mono,
-    hint,
-  }: {
-    label: string;
-    field: keyof StudentRow;
-    placeholder?: string;
-    mono?: boolean;
-    hint?: string;
-  }) => (
-    <View style={[styles.fieldGroup, { borderColor: colors.border }]}>
-      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <TextInput
-        style={[
-          styles.fieldInput,
-          { color: colors.foreground, fontFamily: mono ? "monospace" : undefined },
-        ]}
-        value={String(row[field] || "")}
-        onChangeText={val => updateRow(row.id, field, val)}
-        placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground}
-        autoCapitalize={mono ? "none" : "words"}
-      />
-      {hint ? <Text style={[styles.fieldHint, { color: colors.mutedForeground }]}>{hint}</Text> : null}
-    </View>
-  );
-
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : 0;
+
+  const fieldProps = {
+    onChangeText: handleChange,
+    borderColor: colors.border,
+    labelColor: colors.mutedForeground,
+    inputColor: colors.foreground,
+    hintColor: colors.mutedForeground,
+  };
 
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* Back header */}
+      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.header, paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color="#f1f5f9" />
@@ -113,19 +145,18 @@ export default function StudentDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad + 40 }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad + 40 }]}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Score summary card */}
         <View style={[styles.scoreCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.scoreCardLeft}>
             <Text style={[styles.scoreCardTitle, { color: colors.foreground }]}>Current Score</Text>
             {cfg ? (
-              <Text style={[styles.scoreLabel, { color: (colors as Record<string, string>)[cfg.barKey] }]}>
-                {cfg.label}
-              </Text>
+              <Text style={[styles.scoreLabel, { color: colors[cfg.barKey] }]}>{cfg.label}</Text>
             ) : sp ? (
-              <Text style={[styles.scoreLabel, { color: (colors as Record<string, string>)[sp.fgKey] }]}>
-                {sp.title}
-              </Text>
+              <Text style={[styles.scoreLabel, { color: colors[sp.fgKey] }]}>{sp.title}</Text>
             ) : (
               <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>No time entered</Text>
             )}
@@ -140,18 +171,12 @@ export default function StudentDetailScreen() {
 
         {/* Special codes helper */}
         <View style={[styles.helperCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          <Text style={[styles.helperTitle, { color: colors.mutedForeground }]}>
-            Mile Time Codes
-          </Text>
+          <Text style={[styles.helperTitle, { color: colors.mutedForeground }]}>Mile Time Codes</Text>
           <View style={styles.helperRow}>
             {Object.entries(SPECIAL).map(([key, val]) => (
-              <View key={key} style={[styles.helperChip, { backgroundColor: (colors as Record<string, string>)[val.bgKey] }]}>
-                <Text style={[styles.helperChipText, { color: (colors as Record<string, string>)[val.fgKey] }]}>
-                  {val.label}
-                </Text>
-                <Text style={[styles.helperChipLabel, { color: (colors as Record<string, string>)[val.fgKey] }]}>
-                  {val.title}
-                </Text>
+              <View key={key} style={[styles.helperChip, { backgroundColor: colors[val.bgKey] }]}>
+                <Text style={[styles.helperChipText, { color: colors[val.fgKey] }]}>{val.label}</Text>
+                <Text style={[styles.helperChipLabel, { color: colors[val.fgKey] }]}>{val.title}</Text>
               </View>
             ))}
           </View>
@@ -160,30 +185,35 @@ export default function StudentDetailScreen() {
           </Text>
         </View>
 
-        {/* Fields */}
+        {/* Student info fields */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Student Info</Text>
-          <Field label="First Name" field="firstName" placeholder="First name" />
-          <Field label="Last Name" field="lastName" placeholder="Last name" />
-          <Field label="Student ID" field="studentId" placeholder="Student ID" mono />
-          <Field label="Roll Call #" field="rollCall" placeholder="#" mono />
+          <Field {...fieldProps} label="First Name" field="firstName" placeholder="First name" value={row.firstName} />
+          <Field {...fieldProps} label="Last Name" field="lastName" placeholder="Last name" value={row.lastName} />
+          <Field {...fieldProps} label="Student ID" field="studentId" placeholder="Student ID" mono value={row.studentId} />
+          <Field {...fieldProps} label="Roll Call #" field="rollCall" placeholder="#" mono value={row.rollCall} />
         </View>
 
+        {/* Time fields */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Times</Text>
           <Field
+            {...fieldProps}
             label="Time to Beat (TTB)"
             field="ttb"
             placeholder="MM.SS (e.g. 9.30)"
             mono
             hint="Personal goal time for this student"
+            value={row.ttb}
           />
           <Field
+            {...fieldProps}
             label="Mile Time"
             field="mileTime"
             placeholder="MM.SS or MU / MED / ABS / EXC"
             mono
             hint="Enter MU (make-up), MED (medical), ABS (absent), or EXC (excused)"
+            value={row.mileTime}
           />
         </View>
       </ScrollView>
