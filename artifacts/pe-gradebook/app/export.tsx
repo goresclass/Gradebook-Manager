@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as XLSX from "xlsx";
 
 import { useGradebook } from "@/context/GradebookContext";
+import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { SCORE_CFG, calcScore, getSpecial } from "@/utils/grading";
 
@@ -26,19 +27,20 @@ export default function ExportScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
   const { rows, className, stats } = useGradebook();
+  const { gradingConfig } = useSettings();
 
   // ── CSV ─────────────────────────────────────────────────────────────────
   const csv = useMemo(() => {
     const headers = ["Student ID", "Roll Call", "Last Name", "First Name", "Time to Beat", "Mile Time", "Score"];
     const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const dataRows = rows.map(r => {
-      const score = calcScore(r.mileTime, r.ttb);
-      const sp = getSpecial(r.mileTime);
+      const score = calcScore(r.mileTime, r.ttb, gradingConfig);
+      const sp = getSpecial(r.mileTime, gradingConfig);
       const sv = sp ? sp.label : (score !== null ? score : "");
       return [r.studentId, r.rollCall, r.lastName, r.firstName, r.ttb, r.mileTime, sv].map(escape).join(",");
     });
     return [headers.map(escape).join(","), ...dataRows].join("\n");
-  }, [rows]);
+  }, [rows, gradingConfig]);
 
   const safeName = (className || "gradebook").replace(/[^a-z0-9]/gi, "_").toLowerCase();
   const csvFileName = `${safeName}_grades.csv`;
@@ -52,8 +54,8 @@ export default function ExportScreen() {
       // Build worksheet data
       const headerRow = ["Student ID", "Roll Call", "Last Name", "First Name", "Time to Beat", "Mile Time", "Score"];
       const dataRows = rows.map(r => {
-        const score = calcScore(r.mileTime, r.ttb);
-        const sp = getSpecial(r.mileTime);
+        const score = calcScore(r.mileTime, r.ttb, gradingConfig);
+        const sp = getSpecial(r.mileTime, gradingConfig);
         const sv = sp ? sp.label : (score !== null ? score : "");
         return [r.studentId, r.rollCall, r.lastName, r.firstName, r.ttb, r.mileTime, sv];
       });

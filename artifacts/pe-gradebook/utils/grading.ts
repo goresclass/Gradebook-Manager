@@ -20,6 +20,39 @@ export function parseMMSS(raw: string | null | undefined): number | null {
   return null;
 }
 
+// ── Grading configuration ──────────────────────────────────────────────────
+
+export type GradingConfig = {
+  // How many seconds over TTB still earns each tier
+  tier90MaxSecs: number;  // default 10  → "within 10 sec of TTB"
+  tier80MaxSecs: number;  // default 29  → "within 29 sec of TTB"
+  // Absolute time cutoffs (in seconds) — override TTB tiers
+  threshold65Secs: number; // default 720  (12:00)
+  threshold50Secs: number; // default 960  (16:00)
+  // Custom labels for special status codes
+  specialLabels: {
+    mu: string;   // default "Make-Up"
+    med: string;  // default "Medical"
+    abs: string;  // default "Absent"
+    exc: string;  // default "Excused"
+  };
+};
+
+export const DEFAULT_GRADING_CONFIG: GradingConfig = {
+  tier90MaxSecs: 10,
+  tier80MaxSecs: 29,
+  threshold65Secs: 720,
+  threshold50Secs: 960,
+  specialLabels: {
+    mu:  "Make-Up",
+    med: "Medical",
+    abs: "Absent",
+    exc: "Excused",
+  },
+};
+
+// ── Special status ─────────────────────────────────────────────────────────
+
 export type SpecialStatus = {
   label: string;
   title: string;
@@ -27,38 +60,69 @@ export type SpecialStatus = {
   fgKey: string;
 };
 
-export const SPECIAL: Record<string, SpecialStatus> = {
-  mu:  { label: "MU",  title: "Make-Up",  bgKey: "muBg",  fgKey: "muFg"  },
-  med: { label: "MED", title: "Medical",  bgKey: "medBg", fgKey: "medFg" },
-  abs: { label: "ABS", title: "Absent",   bgKey: "absBg", fgKey: "absFg" },
-  exc: { label: "EXC", title: "Excused",  bgKey: "excBg", fgKey: "excFg" },
+// Static code definitions — titles are overridden at runtime from config
+export const SPECIAL_BASE: Record<string, Omit<SpecialStatus, "title">> = {
+  mu:  { label: "MU",  bgKey: "muBg",  fgKey: "muFg"  },
+  med: { label: "MED", bgKey: "medBg", fgKey: "medFg" },
+  abs: { label: "ABS", bgKey: "absBg", fgKey: "absFg" },
+  exc: { label: "EXC", bgKey: "excBg", fgKey: "excFg" },
 };
 
-export function getSpecial(raw: string | null | undefined): SpecialStatus | null {
+// Default SPECIAL map (used where no config is available)
+export const SPECIAL: Record<string, SpecialStatus> = {
+  mu:  { ...SPECIAL_BASE.mu,  title: DEFAULT_GRADING_CONFIG.specialLabels.mu  },
+  med: { ...SPECIAL_BASE.med, title: DEFAULT_GRADING_CONFIG.specialLabels.med },
+  abs: { ...SPECIAL_BASE.abs, title: DEFAULT_GRADING_CONFIG.specialLabels.abs },
+  exc: { ...SPECIAL_BASE.exc, title: DEFAULT_GRADING_CONFIG.specialLabels.exc },
+};
+
+// Build a SPECIAL map from config (for components that have access to config)
+export function buildSpecial(cfg: GradingConfig): Record<string, SpecialStatus> {
+  return {
+    mu:  { ...SPECIAL_BASE.mu,  title: cfg.specialLabels.mu  },
+    med: { ...SPECIAL_BASE.med, title: cfg.specialLabels.med },
+    abs: { ...SPECIAL_BASE.abs, title: cfg.specialLabels.abs },
+    exc: { ...SPECIAL_BASE.exc, title: cfg.specialLabels.exc },
+  };
+}
+
+export function getSpecial(
+  raw: string | null | undefined,
+  cfg: GradingConfig = DEFAULT_GRADING_CONFIG
+): SpecialStatus | null {
   if (!raw) return null;
   const s = String(raw).trim().toLowerCase();
-  for (const [key, val] of Object.entries(SPECIAL)) {
+  const special = buildSpecial(cfg);
+  for (const [key, val] of Object.entries(special)) {
     if (s.startsWith(key)) return val;
   }
   return null;
 }
 
-export function calcScore(mileRaw: string, ttbRaw: string): number | null {
-  if (getSpecial(mileRaw)) return null;
+// ── Score calculation ──────────────────────────────────────────────────────
+
+export function calcScore(
+  mileRaw: string,
+  ttbRaw: string,
+  cfg: GradingConfig = DEFAULT_GRADING_CONFIG
+): number | null {
+  if (getSpecial(mileRaw, cfg)) return null;
   const mt = parseMMSS(mileRaw);
   if (mt === null) return null;
-  if (mt >= 960) return 50;
-  if (mt >= 720) return 65;
+  if (mt >= cfg.threshold50Secs) return 50;
+  if (mt >= cfg.threshold65Secs) return 65;
   const ttb = parseMMSS(ttbRaw);
   if (ttb !== null) {
     if (mt <= ttb) return 100;
     const diff = mt - ttb;
-    if (diff <= 10) return 90;
-    if (diff <= 29) return 80;
+    if (diff <= cfg.tier90MaxSecs) return 90;
+    if (diff <= cfg.tier80MaxSecs) return 80;
     return 70;
   }
   return 50;
 }
+
+// ── Score display config ───────────────────────────────────────────────────
 
 export type ScoreConfig = {
   bgKey: string;
@@ -75,6 +139,8 @@ export const SCORE_CFG: Record<number, ScoreConfig> = {
   65:  { bgKey: "score65bg",  fgKey: "score65fg",  barKey: "score65bar",  label: "12:00\u201315:59"      },
   50:  { bgKey: "score50bg",  fgKey: "score50fg",  barKey: "score50bar",  label: "\u2265 16:00 / other" },
 };
+
+// ── Utilities ──────────────────────────────────────────────────────────────
 
 export function formatMMSS(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);

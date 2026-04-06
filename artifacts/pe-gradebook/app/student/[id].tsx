@@ -17,8 +17,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useGradebook, StudentRow } from "@/context/GradebookContext";
+import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
-import { SCORE_CFG, SPECIAL, calcScore, formatMMSS, getSpecial, parseMMSS } from "@/utils/grading";
+import { SCORE_CFG, buildSpecial, calcScore, formatMMSS, getSpecial, parseMMSS } from "@/utils/grading";
 
 // Field must be a top-level component (not defined inside the screen)
 // so React preserves its identity across re-renders and the keyboard stays open.
@@ -75,6 +76,8 @@ export default function StudentDetailScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
   const { rows, updateRow, deleteRow } = useGradebook();
+  const { gradingConfig } = useSettings();
+  const SPECIAL = buildSpecial(gradingConfig);
   const numId = parseInt(id, 10);
   const row = rows.find(r => r.id === numId);
 
@@ -95,8 +98,8 @@ export default function StudentDetailScreen() {
     );
   }
 
-  const score = calcScore(row.mileTime, row.ttb);
-  const sp = getSpecial(row.mileTime);
+  const score = calcScore(row.mileTime, row.ttb, gradingConfig);
+  const sp = getSpecial(row.mileTime, gradingConfig);
   const mileSeconds = parseMMSS(row.mileTime);
   const ttbSeconds = parseMMSS(row.ttb);
   const cfg = score !== null ? SCORE_CFG[score] : null;

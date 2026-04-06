@@ -13,6 +13,7 @@ import {
 
 import { useColors } from "@/hooks/useColors";
 import { StudentRow } from "@/context/GradebookContext";
+import { useSettings } from "@/context/SettingsContext";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { calcScore, getSpecial } from "@/utils/grading";
 
@@ -26,8 +27,9 @@ type Props = {
 
 export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) {
   const colors = useColors() as Record<string, string>;
-  const score = calcScore(row.mileTime, row.ttb);
-  const sp = getSpecial(row.mileTime);
+  const { gradingConfig } = useSettings();
+  const score = calcScore(row.mileTime, row.ttb, gradingConfig);
+  const sp = getSpecial(row.mileTime, gradingConfig);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {

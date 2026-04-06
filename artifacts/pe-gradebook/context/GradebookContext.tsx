@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { calcScore, getField, getSpecial, normalizeKey } from "@/utils/grading";
+import { useSettings } from "@/context/SettingsContext";
 
 let _uid = Date.now();
 
@@ -69,6 +70,7 @@ const GradebookContext = createContext<GradebookContextType | null>(null);
 const STORAGE_KEY = "pe_gb_mobile_v1";
 
 export function GradebookProvider({ children }: { children: React.ReactNode }) {
+  const { gradingConfig } = useSettings();
   const [rows, setRows] = useState<StudentRow[]>([]);
   const [ready, setReady] = useState(false);
   const [className, setClassName] = useState("Period 2");
@@ -147,8 +149,8 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
 
   const withScores: StudentRowWithScore[] = rows.map(r => ({
     ...r,
-    _special: getSpecial(r.mileTime),
-    score: calcScore(r.mileTime, r.ttb),
+    _special: getSpecial(r.mileTime, gradingConfig),
+    score: calcScore(r.mileTime, r.ttb, gradingConfig),
   }));
 
   const graded = withScores.filter(r => r.score !== null);
