@@ -284,22 +284,6 @@ export default function StudentDetailScreen() {
           )}
         </View>
 
-        {/* Special codes helper */}
-        <View style={[styles.helperCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          <Text style={[styles.helperTitle, { color: colors.mutedForeground }]}>Mile Time Codes</Text>
-          <View style={styles.helperRow}>
-            {Object.entries(SPECIAL).map(([key, val]) => (
-              <View key={key} style={[styles.helperChip, { backgroundColor: colors[val.bgKey] }]}>
-                <Text style={[styles.helperChipText, { color: colors[val.fgKey] }]}>{val.label}</Text>
-                <Text style={[styles.helperChipLabel, { color: colors[val.fgKey] }]}>{val.title}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={[styles.helperHint, { color: colors.mutedForeground }]}>
-            Times: MM.SS format (e.g. 8.07 = 8:07 · 10.59 = 10:59)
-          </Text>
-        </View>
-
         {/* Student info fields */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Student Info</Text>
@@ -331,6 +315,22 @@ export default function StudentDetailScreen() {
             hint="Enter MU (make-up), MED (medical), ABS (absent), or EXC (excused)"
             value={row.mileTime}
           />
+        </View>
+
+        {/* Special codes helper */}
+        <View style={[styles.helperCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Text style={[styles.helperTitle, { color: colors.mutedForeground }]}>Mile Time Codes</Text>
+          <View style={styles.helperRow}>
+            {Object.entries(SPECIAL).map(([key, val]) => (
+              <View key={key} style={[styles.helperChip, { backgroundColor: colors[val.bgKey] }]}>
+                <Text style={[styles.helperChipText, { color: colors[val.fgKey] }]}>{val.label}</Text>
+                <Text style={[styles.helperChipLabel, { color: colors[val.fgKey] }]}>{val.title}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={[styles.helperHint, { color: colors.mutedForeground }]}>
+            Times: MM.SS format (e.g. 8.07 = 8:07 · 10.59 = 10:59)
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
