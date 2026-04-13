@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -560,7 +561,12 @@ function ArchiveDatesModal({ visible, rows, colors, onRename, onClose }: Archive
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={dmStyles.overlay}>
+      <KeyboardAvoidingView
+        style={dmStyles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+        <View style={dmStyles.overlayTap} onTouchEnd={onClose} />
         <View style={[dmStyles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {/* Header */}
           <View style={[dmStyles.sheetHeader, { borderColor: colors.border }]}>
@@ -631,7 +637,7 @@ function ArchiveDatesModal({ visible, rows, colors, onRename, onClose }: Archive
             <Text style={dmStyles.doneBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -641,6 +647,9 @@ const dmStyles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  overlayTap: {
+    flex: 1,
   },
   sheet: {
     borderTopLeftRadius: 20,
