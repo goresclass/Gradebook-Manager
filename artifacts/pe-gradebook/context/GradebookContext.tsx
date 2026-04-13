@@ -125,6 +125,7 @@ type GradebookContextType = {
 const GradebookContext = createContext<GradebookContextType | null>(null);
 
 const STORAGE_KEY = "pe_gb_mobile_v1";
+const BACKUP_KEY  = "pe_gb_mobile_backup";
 
 // ── Provider ───────────────────────────────────────────────────────────────
 
@@ -138,8 +139,9 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
   // ── Load & migrate ──────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
+      let saved: string | null = null;
       try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        saved = await AsyncStorage.getItem(STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
 
@@ -148,20 +150,37 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
             const loadedClasses: ClassRecord[] = parsed.classes.map((c: ClassRecord) => ({
               ...c,
               rows: Array.isArray(c.rows) && c.rows.length > 0
-                ? c.rows.map(ensureRuns)
+                ? c.rows.map((r: StudentRow) => { try { return ensureRuns(r); } catch { return mkRow(); } })
                 : [mkRow()],
             }));
-            const maxId = Math.max(...loadedClasses.flatMap(c => c.rows.map((r: StudentRow) => r.id || 0)));
-            if (maxId > _uid) _uid = maxId;
+            const allIds = loadedClasses.flatMap(c => c.rows.map((r: StudentRow) => r.id || 0));
+            if (allIds.length > 0) {
+              const maxId = Math.max(...allIds);
+              if (maxId > _uid) _uid = maxId;
+            }
+            const allClassIds = loadedClasses.map(c => parseInt(c.id, 10) || 0);
+            if (allClassIds.length > 0) {
+              const maxClassId = Math.max(...allClassIds);
+              if (maxClassId > _classUid) _classUid = maxClassId;
+            }
+            const allRunIds = loadedClasses.flatMap(c => c.rows.flatMap(r => r.runs.map(run => parseInt(run.id, 10) || 0)));
+            if (allRunIds.length > 0) {
+              const maxRunId = Math.max(...allRunIds);
+              if (maxRunId > _runUid) _runUid = maxRunId;
+            }
             setClasses(loadedClasses);
             const activeExists = loadedClasses.some(c => c.id === parsed.activeClassId);
             setActiveClassId(activeExists ? parsed.activeClassId : loadedClasses[0].id);
 
           // v1 format: { rows: [...], className: "..." }
           } else if (parsed.rows && Array.isArray(parsed.rows)) {
-            const migratedRows: StudentRow[] = (parsed.rows.length > 0 ? parsed.rows : [mkRow()]).map(ensureRuns);
-            const maxId = Math.max(...migratedRows.map((r: StudentRow) => r.id || 0));
-            if (maxId > _uid) _uid = maxId;
+            const migratedRows: StudentRow[] = (parsed.rows.length > 0 ? parsed.rows : [mkRow()])
+              .map((r: StudentRow) => { try { return ensureRuns(r); } catch { return mkRow(); } });
+            const allIds = migratedRows.map((r: StudentRow) => r.id || 0);
+            if (allIds.length > 0) {
+              const maxId = Math.max(...allIds);
+              if (maxId > _uid) _uid = maxId;
+            }
             const migrated = makeClass(parsed.className || "Period 1");
             migrated.rows = migratedRows;
             setClasses([migrated]);
@@ -178,6 +197,11 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
           setActiveClassId(initial.id);
         }
       } catch {
+        // Save the raw data to a backup key before resetting,
+        // so it can be inspected or recovered rather than lost forever.
+        if (saved) {
+          AsyncStorage.setItem(BACKUP_KEY, saved).catch(() => {});
+        }
         const initial = makeClass("Period 1");
         setClasses([initial]);
         setActiveClassId(initial.id);
@@ -190,8 +214,14 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ classes, activeClassId })).catch(() => {});
+    saveTimerRef.current = setTimeout(async () => {
+      const payload = JSON.stringify({ classes, activeClassId });
+      // Snapshot the previous good save as a backup before overwriting
+      try {
+        const prev = await AsyncStorage.getItem(STORAGE_KEY);
+        if (prev) await AsyncStorage.setItem(BACKUP_KEY, prev);
+      } catch { /* non-critical */ }
+      AsyncStorage.setItem(STORAGE_KEY, payload).catch(() => {});
     }, 500);
   }, [classes, activeClassId, ready]);
 
