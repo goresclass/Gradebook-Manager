@@ -1,5 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
 import React, { useState } from "react";
 import {
   Alert,
@@ -14,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useGradebook } from "@/context/GradebookContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { DEFAULT_GRADING_CONFIG, formatMMSS } from "@/utils/grading";
@@ -102,8 +106,84 @@ export default function SettingsScreen() {
   const colors = useColors() as Colors;
   const insets = useSafeAreaInsets();
   const { gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults } = useSettings();
+  const { classes, activeClassId, restoreBackup } = useGradebook();
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  // ── Backup handlers ───────────────────────────────────────────────────────
+
+  const handleExportBackup = async () => {
+    try {
+      const totalStudents = classes.reduce((sum, c) => sum + c.rows.length, 0);
+      const payload = {
+        app: "mile-run-grader",
+        appVersion: 2,
+        exportDate: new Date().toISOString(),
+        gradebook: { classes, activeClassId },
+        settings: { gradingConfig },
+      };
+      const json = JSON.stringify(payload, null, 2);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `mile_run_backup_${dateStr}.json`;
+
+      if (Platform.OS === "web") {
+        // Web: trigger browser download
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert("Backup Downloaded", `${classes.length} class${classes.length !== 1 ? "es" : ""}, ${totalStudents} students saved.`);
+      } else {
+        const path = (FileSystem.cacheDirectory ?? "") + fileName;
+        await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(path, { mimeType: "application/json", dialogTitle: "Save Backup" });
+      }
+    } catch (e) {
+      Alert.alert("Export Failed", "Could not create backup file.");
+    }
+  };
+
+  const handleImportBackup = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const response = await fetch(asset.uri);
+      if (!response.ok) throw new Error("fetch failed");
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      if (parsed.app !== "mile-run-grader" || !parsed.gradebook?.classes) {
+        Alert.alert("Invalid File", "This file does not appear to be a Mile Run Grader backup.");
+        return;
+      }
+      const { classes: newClasses, activeClassId: newActiveId } = parsed.gradebook;
+      const totalStudents = newClasses.reduce((s: number, c: { rows: unknown[] }) => s + c.rows.length, 0);
+      Alert.alert(
+        "Restore Backup?",
+        `This backup contains ${newClasses.length} class${newClasses.length !== 1 ? "es" : ""} and ${totalStudents} student${totalStudents !== 1 ? "s" : ""}.\n\nRestoring will replace all current gradebook data. This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Restore",
+            style: "destructive",
+            onPress: () => {
+              restoreBackup(newClasses, newActiveId);
+              if (parsed.settings?.gradingConfig) {
+                updateGradingConfig(parsed.settings.gradingConfig);
+              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert("Restored", "Gradebook data has been restored from the backup.");
+            },
+          },
+        ]
+      );
+    } catch {
+      Alert.alert("Import Failed", "Could not read the file. Make sure it is a valid .json backup.");
+    }
+  };
 
   // Local editable state for time threshold inputs
   const [tier90, setTier90] = useState(String(gradingConfig.tier90MaxSecs));
@@ -295,6 +375,49 @@ export default function SettingsScreen() {
           ))}
         </View>
 
+        {/* ── Cloud Backup ── */}
+        <SectionHeader icon="☁️" title="DATA BACKUP" colors={colors} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor }]}>
+          <Text style={[styles.cardNote, { color: colors.mutedForeground }]}>
+            Export your entire gradebook (all periods, all run history) as a JSON file you can save to
+            iCloud, Google Drive, or any cloud storage. Restore it on any device running this app.
+          </Text>
+
+          {/* Export */}
+          <TouchableOpacity
+            onPress={handleExportBackup}
+            style={[styles.backupBtn, { borderColor, backgroundColor: colors.secondary }]}
+          >
+            <View style={[styles.backupBtnIcon, { backgroundColor: "#0e7490" }]}>
+              <Feather name="upload-cloud" size={16} color="#fff" />
+            </View>
+            <View style={styles.backupBtnText}>
+              <Text style={[styles.backupBtnTitle, { color: colors.foreground }]}>Export Backup</Text>
+              <Text style={[styles.backupBtnHint, { color: colors.mutedForeground }]}>
+                {classes.length} class{classes.length !== 1 ? "es" : ""} · {classes.reduce((s, c) => s + c.rows.length, 0)} students · includes run history
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+
+          {/* Import / Restore */}
+          <TouchableOpacity
+            onPress={handleImportBackup}
+            style={[styles.backupBtn, { borderColor, borderTopWidth: 1, backgroundColor: colors.secondary }]}
+          >
+            <View style={[styles.backupBtnIcon, { backgroundColor: "#7c3aed" }]}>
+              <Feather name="download-cloud" size={16} color="#fff" />
+            </View>
+            <View style={styles.backupBtnText}>
+              <Text style={[styles.backupBtnTitle, { color: colors.foreground }]}>Restore from Backup</Text>
+              <Text style={[styles.backupBtnHint, { color: colors.mutedForeground }]}>
+                Pick a .json backup file to replace all current data
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
         {/* ── Reset ── */}
         <TouchableOpacity
           onPress={handleReset}
@@ -396,4 +519,23 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   resetText: { color: "#f87171", fontSize: 14, fontWeight: "600" },
+
+  backupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 12,
+  },
+  backupBtnIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  backupBtnText: { flex: 1, gap: 2 },
+  backupBtnTitle: { fontSize: 14, fontWeight: "600" },
+  backupBtnHint: { fontSize: 11, lineHeight: 16 },
 });

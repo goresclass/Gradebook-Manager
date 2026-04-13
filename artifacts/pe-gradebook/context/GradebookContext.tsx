@@ -6,6 +6,17 @@ import { useSettings } from "@/context/SettingsContext";
 
 let _uid = Date.now();
 let _classUid = Date.now() + 1000000;
+let _runUid = Date.now() + 2000000;
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+export type RunRecord = {
+  id: string;
+  label: string;    // human-readable, e.g. "Apr 13, 2026"
+  date: string;     // ISO date string
+  mileTime: string;
+  score: number | null; // score at time of archive
+};
 
 export type StudentRow = {
   id: number;
@@ -15,6 +26,7 @@ export type StudentRow = {
   firstName: string;
   ttb: string;
   mileTime: string;
+  runs: RunRecord[];
 };
 
 export type StudentRowWithScore = StudentRow & {
@@ -28,6 +40,8 @@ export type ClassRecord = {
   rows: StudentRow[];
 };
 
+// ── Factories ──────────────────────────────────────────────────────────────
+
 export function mkRow(overrides: Partial<StudentRow> = {}): StudentRow {
   return {
     id: ++_uid,
@@ -37,13 +51,13 @@ export function mkRow(overrides: Partial<StudentRow> = {}): StudentRow {
     firstName: "",
     ttb: "",
     mileTime: "",
+    runs: [],
     ...overrides,
   };
 }
 
-function newClassId(): string {
-  return String(++_classUid);
-}
+function newClassId(): string { return String(++_classUid); }
+function newRunId():   string { return String(++_runUid); }
 
 function makeClass(name: string): ClassRecord {
   return { id: newClassId(), name, rows: [mkRow()] };
@@ -60,6 +74,12 @@ function csvRowToRow(raw: Record<string, string>): StudentRow {
   });
 }
 
+function ensureRuns(row: Omit<StudentRow, "runs"> & { runs?: RunRecord[] }): StudentRow {
+  return { ...row, runs: row.runs ?? [] } as StudentRow;
+}
+
+// ── Context type ───────────────────────────────────────────────────────────
+
 type GradebookContextType = {
   // Multi-class management
   classes: ClassRecord[];
@@ -67,7 +87,7 @@ type GradebookContextType = {
   setActiveClass: (id: string) => void;
   addClass: (name?: string) => string;
   deleteClass: (id: string) => void;
-  // Active-class proxies (same API as before)
+  // Active-class proxies
   rows: StudentRow[];
   ready: boolean;
   className: string;
@@ -85,11 +105,18 @@ type GradebookContextType = {
     avg: number | null;
     dist: [number, number][];
   };
+  // Run history
+  archiveRuns: (label?: string) => number;
+  deleteRunRecord: (studentId: number, runId: string) => void;
+  // Backup / restore
+  restoreBackup: (classes: ClassRecord[], activeClassId: string) => void;
 };
 
 const GradebookContext = createContext<GradebookContextType | null>(null);
 
 const STORAGE_KEY = "pe_gb_mobile_v1";
+
+// ── Provider ───────────────────────────────────────────────────────────────
 
 export function GradebookProvider({ children }: { children: React.ReactNode }) {
   const { gradingConfig } = useSettings();
@@ -98,7 +125,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Load & migrate ────────────────────────────────────────────────────────
+  // ── Load & migrate ──────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -108,10 +135,11 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
 
           // v2 format: { classes: [...], activeClassId: "..." }
           if (parsed.classes && Array.isArray(parsed.classes) && parsed.classes.length > 0) {
-            // Ensure every class has at least one row
             const loadedClasses: ClassRecord[] = parsed.classes.map((c: ClassRecord) => ({
               ...c,
-              rows: Array.isArray(c.rows) && c.rows.length > 0 ? c.rows : [mkRow()],
+              rows: Array.isArray(c.rows) && c.rows.length > 0
+                ? c.rows.map(ensureRuns)
+                : [mkRow()],
             }));
             const maxId = Math.max(...loadedClasses.flatMap(c => c.rows.map((r: StudentRow) => r.id || 0)));
             if (maxId > _uid) _uid = maxId;
@@ -121,7 +149,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
 
           // v1 format: { rows: [...], className: "..." }
           } else if (parsed.rows && Array.isArray(parsed.rows)) {
-            const migratedRows: StudentRow[] = parsed.rows.length > 0 ? parsed.rows : [mkRow()];
+            const migratedRows: StudentRow[] = (parsed.rows.length > 0 ? parsed.rows : [mkRow()]).map(ensureRuns);
             const maxId = Math.max(...migratedRows.map((r: StudentRow) => r.id || 0));
             if (maxId > _uid) _uid = maxId;
             const migrated = makeClass(parsed.className || "Period 1");
@@ -148,7 +176,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // ── Persist ───────────────────────────────────────────────────────────────
+  // ── Persist ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!ready) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -157,7 +185,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
     }, 500);
   }, [classes, activeClassId, ready]);
 
-  // ── Active class helpers ──────────────────────────────────────────────────
+  // ── Active class helpers ─────────────────────────────────────────────────
   const activeClass = classes.find(c => c.id === activeClassId) ?? classes[0];
   const rows = activeClass?.rows ?? [];
   const className = activeClass?.name ?? "";
@@ -166,7 +194,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
     setClasses(prev => prev.map(c => c.id === activeClassId ? updater(c) : c));
   }, [activeClassId]);
 
-  // ── Multi-class actions ───────────────────────────────────────────────────
+  // ── Multi-class actions ──────────────────────────────────────────────────
   const setActiveClass = useCallback((id: string) => {
     setActiveClassId(id);
   }, []);
@@ -181,23 +209,23 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
 
   const deleteClass = useCallback((id: string) => {
     setClasses(prev => {
-      if (prev.length <= 1) return prev; // cannot delete last class
+      if (prev.length <= 1) return prev;
       const next = prev.filter(c => c.id !== id);
-      setActiveClassId(cur => {
-        if (cur === id) return next[0].id;
-        return cur;
-      });
+      setActiveClassId(cur => (cur === id ? next[0].id : cur));
       return next;
     });
   }, []);
 
-  // ── Row actions (operate on active class) ─────────────────────────────────
+  // ── Row actions ──────────────────────────────────────────────────────────
   const setClassName = useCallback((name: string) => {
     updateActiveClass(c => ({ ...c, name }));
   }, [updateActiveClass]);
 
   const updateRow = useCallback((id: number, field: keyof StudentRow, val: string) => {
-    updateActiveClass(c => ({ ...c, rows: c.rows.map(r => r.id === id ? { ...r, [field]: val } : r) }));
+    updateActiveClass(c => ({
+      ...c,
+      rows: c.rows.map(r => r.id === id ? { ...r, [field]: val } : r),
+    }));
   }, [updateActiveClass]);
 
   const addRow = useCallback(() => {
@@ -239,6 +267,56 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
     }
   }, [updateActiveClass]);
 
+  // ── Run history ──────────────────────────────────────────────────────────
+  const archiveRuns = useCallback((label?: string): number => {
+    const now = new Date();
+    const defaultLabel = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const entryLabel = label || defaultLabel;
+    const date = now.toISOString();
+
+    let archived = 0;
+    updateActiveClass(c => ({
+      ...c,
+      rows: c.rows.map(r => {
+        if (!r.mileTime.trim()) return r; // skip empty
+        const record: RunRecord = {
+          id: newRunId(),
+          label: entryLabel,
+          date,
+          mileTime: r.mileTime,
+          score: calcScore(r.mileTime, r.ttb, gradingConfig),
+        };
+        archived++;
+        return { ...r, runs: [record, ...r.runs] };
+      }),
+    }));
+    return archived;
+  }, [updateActiveClass, gradingConfig]);
+
+  const deleteRunRecord = useCallback((studentId: number, runId: string) => {
+    updateActiveClass(c => ({
+      ...c,
+      rows: c.rows.map(r =>
+        r.id === studentId ? { ...r, runs: r.runs.filter(rec => rec.id !== runId) } : r
+      ),
+    }));
+  }, [updateActiveClass]);
+
+  // ── Backup / restore ─────────────────────────────────────────────────────
+  const restoreBackup = useCallback((newClasses: ClassRecord[], newActiveId: string) => {
+    const safe = newClasses.map(c => ({
+      ...c,
+      rows: (Array.isArray(c.rows) ? c.rows : [mkRow()]).map(ensureRuns),
+    }));
+    const maxId = safe.length > 0
+      ? Math.max(...safe.flatMap(c => c.rows.map((r: StudentRow) => r.id || 0)))
+      : 0;
+    if (maxId > _uid) _uid = maxId;
+    setClasses(safe);
+    const exists = safe.some(c => c.id === newActiveId);
+    setActiveClassId(exists ? newActiveId : safe[0]?.id ?? "");
+  }, []);
+
   // ── Derived scores ────────────────────────────────────────────────────────
   const withScores: StudentRowWithScore[] = rows.map(r => ({
     ...r,
@@ -275,6 +353,9 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
         importCSV,
         withScores,
         stats: { total: rows.length, graded: graded.length, special: special.length, avg, dist },
+        archiveRuns,
+        deleteRunRecord,
+        restoreBackup,
       }}
     >
       {children}

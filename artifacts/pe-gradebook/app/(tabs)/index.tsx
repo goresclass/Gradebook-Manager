@@ -156,7 +156,7 @@ function PeriodSwitcher({ colors }: PeriodSwitcherProps) {
 export default function GradebookScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, withScores, stats, className } = useGradebook();
+  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, withScores, stats, className, archiveRuns } = useGradebook();
 
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortField>("rollCall");
@@ -222,6 +222,29 @@ export default function GradebookScreen() {
     }
   }, [importCSV]);
 
+  const handleArchiveRuns = () => {
+    const withTime = rows.filter(r => r.mileTime.trim()).length;
+    if (withTime === 0) {
+      Alert.alert("Nothing to Archive", "No students in this period have a mile time entered yet.");
+      return;
+    }
+    Alert.alert(
+      `Archive Run Scores`,
+      `Save the current mile times for all ${withTime} student${withTime !== 1 ? "s" : ""} in "${className}" as a dated history entry?\n\nCurrent times stay in the gradebook — you can update them next week.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Archive",
+          onPress: () => {
+            const count = archiveRuns();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("Archived", `${count} run${count !== 1 ? "s" : ""} saved to student history.`);
+          },
+        },
+      ]
+    );
+  };
+
   const handleClearAll = () => {
     Alert.alert(
       "Clear All Student Data?",
@@ -278,6 +301,12 @@ export default function GradebookScreen() {
               style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
             >
               <Feather name="upload" size={16} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleArchiveRuns}
+              style={[styles.actionBtn, { backgroundColor: "#0e7490" }]}
+            >
+              <Feather name="archive" size={16} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); addRow(); }}

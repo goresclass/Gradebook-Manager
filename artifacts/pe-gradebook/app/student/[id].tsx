@@ -16,13 +16,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScoreBadge } from "@/components/ScoreBadge";
-import { useGradebook, StudentRow } from "@/context/GradebookContext";
+import { useGradebook, StudentRow, RunRecord } from "@/context/GradebookContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { SCORE_CFG, buildSpecial, calcScore, formatMMSS, getSpecial, parseMMSS } from "@/utils/grading";
 
-// Field must be a top-level component (not defined inside the screen)
-// so React preserves its identity across re-renders and the keyboard stays open.
+// Field component must live outside the screen function so React keeps its identity
 type FieldProps = {
   label: string;
   field: keyof StudentRow;
@@ -38,26 +37,14 @@ type FieldProps = {
 };
 
 function Field({
-  label,
-  field,
-  placeholder,
-  mono,
-  hint,
-  value,
-  onChangeText,
-  borderColor,
-  labelColor,
-  inputColor,
-  hintColor,
+  label, field, placeholder, mono, hint, value, onChangeText,
+  borderColor, labelColor, inputColor, hintColor,
 }: FieldProps) {
   return (
     <View style={[styles.fieldGroup, { borderColor }]}>
       <Text style={[styles.fieldLabel, { color: labelColor }]}>{label}</Text>
       <TextInput
-        style={[
-          styles.fieldInput,
-          { color: inputColor, fontFamily: mono ? "monospace" : undefined },
-        ]}
+        style={[styles.fieldInput, { color: inputColor, fontFamily: mono ? "monospace" : undefined }]}
         value={value}
         onChangeText={val => onChangeText(field, val)}
         placeholder={placeholder}
@@ -71,11 +58,58 @@ function Field({
   );
 }
 
+// ── Run History Entry ────────────────────────────────────────────────────────
+
+function RunHistoryEntry({
+  record,
+  onDelete,
+  colors,
+}: {
+  record: RunRecord;
+  onDelete: () => void;
+  colors: Record<string, string>;
+}) {
+  const cfg = record.score !== null ? SCORE_CFG[record.score] : null;
+
+  return (
+    <View style={[styles.runRow, { borderColor: colors.border }]}>
+      <View style={styles.runLeft}>
+        <Text style={[styles.runLabel, { color: colors.foreground }]}>{record.label}</Text>
+        <Text style={[styles.runTime, { color: colors.accent ?? colors.primary, fontFamily: "monospace" }]}>
+          {record.mileTime}
+        </Text>
+      </View>
+      <View style={styles.runRight}>
+        {record.score !== null ? (
+          <View style={[styles.runScoreBadge, { backgroundColor: colors[cfg?.bgKey ?? "secondary"] }]}>
+            <Text style={[styles.runScoreText, { color: colors[cfg?.fgKey ?? "foreground"] }]}>
+              {record.score}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.runScoreBadge, { backgroundColor: colors.secondary }]}>
+            <Text style={[styles.runScoreText, { color: colors.mutedForeground }]}>—</Text>
+          </View>
+        )}
+        <TouchableOpacity
+          onPress={onDelete}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.runDeleteBtn}
+        >
+          <Feather name="x" size={13} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, updateRow, deleteRow } = useGradebook();
+  const { rows, updateRow, deleteRow, deleteRunRecord } = useGradebook();
   const { gradingConfig } = useSettings();
   const SPECIAL = buildSpecial(gradingConfig);
   const numId = parseInt(id, 10);
@@ -114,6 +148,20 @@ export default function StudentDetailScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           deleteRow(row.id);
           router.back();
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteRun = (runId: string) => {
+    Alert.alert("Delete Entry?", "Remove this run record from history?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          deleteRunRecord(row.id, runId);
         },
       },
     ]);
@@ -219,6 +267,33 @@ export default function StudentDetailScreen() {
             value={row.mileTime}
           />
         </View>
+
+        {/* Run history */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.historySectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, paddingTop: 0 }]}>Run History</Text>
+            <Text style={[styles.historyCount, { color: colors.mutedForeground }]}>
+              {row.runs.length} {row.runs.length === 1 ? "entry" : "entries"}
+            </Text>
+          </View>
+          {row.runs.length === 0 ? (
+            <View style={styles.historyEmpty}>
+              <Feather name="clock" size={20} color={colors.mutedForeground} />
+              <Text style={[styles.historyEmptyText, { color: colors.mutedForeground }]}>
+                No saved runs yet. Use "Archive Week" on the main screen to save scores here.
+              </Text>
+            </View>
+          ) : (
+            row.runs.map(rec => (
+              <RunHistoryEntry
+                key={rec.id}
+                record={rec}
+                onDelete={() => handleDeleteRun(rec.id)}
+                colors={colors}
+              />
+            ))
+          )}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -294,4 +369,46 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
   fieldInput: { fontSize: 15, paddingVertical: 2 },
   fieldHint: { fontSize: 11, marginTop: 4 },
+
+  // Run history
+  historySectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  historyCount: { fontSize: 12 },
+  historyEmpty: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+  },
+  historyEmptyText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  runRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+  },
+  runLeft: { flex: 1, gap: 2 },
+  runLabel: { fontSize: 13, fontWeight: "600" },
+  runTime: { fontSize: 12 },
+  runRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  runScoreBadge: {
+    minWidth: 40,
+    height: 28,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  runScoreText: { fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  runDeleteBtn: { padding: 2 },
 });
