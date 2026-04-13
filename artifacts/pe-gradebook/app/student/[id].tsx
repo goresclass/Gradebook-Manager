@@ -111,7 +111,7 @@ function RunHistoryEntry({
           </TouchableOpacity>
         )}
         <Text style={[styles.runTime, { color: colors.accent ?? colors.primary, fontFamily: "monospace" }]}>
-          {record.mileTime}
+          {(() => { const s = parseMMSS(record.mileTime); return s !== null ? formatMMSS(s) : record.mileTime; })()}
         </Text>
       </View>
       <View style={styles.runRight}>
