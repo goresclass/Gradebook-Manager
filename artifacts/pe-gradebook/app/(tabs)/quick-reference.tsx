@@ -197,14 +197,16 @@ export default function QuickReferenceScreen() {
         <SectionHeader icon="🗂" title="CLASS PERIODS" colors={colors} />
         <View style={[styles.table, { borderColor: colors.border }]}>
           <TwoColHeader col1="Action" col2="How" colors={colors} />
-          <TwoColRow col1="Add period"      col2="Tap + in the period switcher at the top of Gradebook" colors={colors} />
-          <TwoColRow col1="Rename period"   col2="Tap the period name to edit it inline" colors={colors} />
-          <TwoColRow col1="Switch period"   col2="Tap any period tab in the switcher" colors={colors} />
-          <TwoColRow col1="Delete period"   col2="Long-press a period tab, then confirm" colors={colors} />
+          <TwoColRow col1="Add period"         col2="Tap + in the period switcher at the top of Gradebook" colors={colors} />
+          <TwoColRow col1="Rename period"      col2="Tap the period name to edit it inline" colors={colors} />
+          <TwoColRow col1="Switch period"      col2="Tap any period tab in the switcher" colors={colors} />
+          <TwoColRow col1="Delete period"      col2="Long-press a period tab, then confirm" colors={colors} />
+          <TwoColRow col1="Move student"       col2="Open student detail → tap the ↱ icon → choose destination period" colors={colors} />
+          <TwoColRow col1="Search all periods" col2="Tap the 🌐 globe icon next to the search bar, then type a name or ID" colors={colors} />
         </View>
         <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
-            Each period has its own independent roster and run data. Export and archive operate on the currently active period only.
+            Each period has its own independent roster and run data. When you move a student, their full run history and TTB transfer with them. Global search shows a period badge on each result and switches you to the right period on tap.
           </Text>
         </View>
 
@@ -218,7 +220,7 @@ export default function QuickReferenceScreen() {
             body={
               <>
                 <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
-                  Found in the Gradebook toolbar. Snapshots every student's current mile time (with date and score) into their run history, then clears the Mile Time column so the class is ready for the next run cycle.
+                  Found in the Gradebook toolbar (teal icon). Snapshots every student's current mile time (with date and score) into their run history, then clears the Mile Time column so the class is ready for the next run cycle.
                 </Text>
                 <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
                   <Text style={styles.bold}>TTB is preserved</Text>{"  "}Personal benchmarks are never cleared
@@ -228,6 +230,44 @@ export default function QuickReferenceScreen() {
                 </Text>
                 <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
                   <Text style={styles.bold}>Semester export</Text>{"  "}Export every archived run across all periods from the Export screen
+                </Text>
+              </>
+            }
+          />
+          <View style={[styles.settingsDivider, { backgroundColor: colors.border }]} />
+          <SettingsBlock
+            icon="📅"
+            title="Edit Archive Dates"
+            colors={colors}
+            body={
+              <>
+                <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
+                  After archiving at least one run, tap the archive button again and choose "Edit Archive Dates" to bulk-rename any run date label across all students in the period at once.
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Bulk rename</Text>{"  "}Change one label → all students update instantly
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Individual edit</Text>{"  "}Tap any date label on a student's detail screen to edit just that entry
+                </Text>
+              </>
+            }
+          />
+          <View style={[styles.settingsDivider, { backgroundColor: colors.border }]} />
+          <SettingsBlock
+            icon="➕"
+            title="Add Run Manually"
+            colors={colors}
+            body={
+              <>
+                <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
+                  On any student's detail screen, tap "+ Add Run" in the Run History section to backfill a past run entry. Useful for transfer students who have prior run data.
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Date / Label</Text>{"  "}Defaults to today — type any date or label
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Score auto-calculated</Text>{"  "}Based on the entered time and the student's current TTB
                 </Text>
               </>
             }
@@ -246,7 +286,8 @@ export default function QuickReferenceScreen() {
         <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
             The current-grades exports (Excel/CSV) include: Student ID, Roll Call, Last Name, First Name, TTB, Mile Time, Score.{"\n"}
-            The Run History export adds: Class, Run Date columns covering all semesters.
+            The Run History export adds: Class, Run Date columns covering all semesters.{"\n"}
+            {"• "}Students with special codes (MU, MED, ABS, EXC) appear as <Text style={{ fontWeight: "700", color: colors.foreground }}>Na</Text> in the Score column — the expected format for Aeries.
           </Text>
         </View>
 
@@ -254,10 +295,12 @@ export default function QuickReferenceScreen() {
         <SectionHeader icon="🖱" title="TOOLBAR BUTTONS" colors={colors} />
         <View style={[styles.table, { borderColor: colors.border }]}>
           <TwoColHeader col1="Button" col2="What It Does" colors={colors} />
-          <TwoColRow col1="↑ Import CSV/XLSX"   col2="Load a roster or data file" colors={colors} />
+          <TwoColRow col1="↑ Import CSV/XLSX"   col2="Load a roster (Full Roster) or just mile times (Mile Times Only)" colors={colors} />
           <TwoColRow col1="↓ Export"            col2="Open the export screen for grades & history" colors={colors} />
-          <TwoColRow col1="📦 Archive"           col2="Snapshot run times, then clear Mile Time column" colors={colors} />
-          <TwoColRow col1="+ Add Student"       col2="Append a blank row to the list" colors={colors} />
+          <TwoColRow col1="📦 Archive"           col2="Snapshot run times into history; or edit archive dates if runs exist" colors={colors} />
+          <TwoColRow col1="👤 Add Student"       col2="Append a blank row to the roster" colors={colors} />
+          <TwoColRow col1="🌐 Globe (search bar)" col2="Toggle cross-period search — finds students across all periods" colors={colors} />
+          <TwoColRow col1="↱ Move (student detail)" col2="Move the student to a different period with full history" colors={colors} />
           <TwoColRow col1="Sort / Filter"       col2="Tap any column header to sort; tap again to reverse" colors={colors} />
         </View>
 
@@ -425,6 +468,12 @@ export default function QuickReferenceScreen() {
           <Tip text="Export Run History at the end of a semester for a permanent record of all runs." colors={colors} />
           <Tip text="If CSV download fails, use Copy to Clipboard in the Export screen." colors={colors} />
           <Tip text="Student photos load from any public URL — add a photo column to your import CSV." colors={colors} />
+          <Tip text="Use the 🌐 globe icon to find a student across all periods without switching tabs." colors={colors} />
+          <Tip text="Transfer students? Move them with the ↱ icon in their detail screen — history travels with them." colors={colors} />
+          <Tip text="Backfill past runs for transfer students using '+ Add Run' on their detail screen." colors={colors} />
+          <Tip text="Archived a run with the wrong date? Tap the archive button again → Edit Archive Dates to fix all students at once." colors={colors} />
+          <Tip text="Special codes (MU, MED, ABS, EXC) export as 'Na' — exactly what Aeries expects." colors={colors} />
+          <Tip text="Import 'Mile Times Only' to update just run times without overwriting your roster." colors={colors} />
         </View>
 
         {/* Footer */}
