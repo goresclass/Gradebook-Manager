@@ -158,10 +158,11 @@ function PeriodSwitcher({ colors }: PeriodSwitcherProps) {
 export default function GradebookScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, importMileTimes, withScores, stats, className, archiveRuns, renameRunLabel } = useGradebook();
+  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, importMileTimes, withScores, stats, className, archiveRuns, renameRunLabel, classes, setActiveClass } = useGradebook();
   const [showDatesModal, setShowDatesModal] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [globalSearch, setGlobalSearch] = useState(false);
   const [sortCol, setSortCol] = useState<SortField>("rollCall");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
@@ -192,6 +193,31 @@ export default function GradebookScreen() {
       return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
     });
   }, [withScores, search, sortCol, sortDir]);
+
+  // Cross-class search: flat list of all students across all periods
+  type GlobalRow = typeof rows[number] & { classId: string; classLabel: string };
+  const globalSorted = useMemo<GlobalRow[]>(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    const out: GlobalRow[] = [];
+    for (const cls of classes) {
+      for (const r of cls.rows) {
+        if (
+          r.firstName.toLowerCase().includes(q) ||
+          r.lastName.toLowerCase().includes(q) ||
+          r.studentId.toLowerCase().includes(q) ||
+          r.rollCall.toLowerCase().includes(q)
+        ) {
+          out.push({ ...r, classId: cls.id, classLabel: cls.name });
+        }
+      }
+    }
+    return out.sort((a, b) => {
+      const af = `${a.lastName} ${a.firstName}`.toLowerCase();
+      const bf = `${b.lastName} ${b.firstName}`.toLowerCase();
+      return af < bf ? -1 : af > bf ? 1 : 0;
+    });
+  }, [classes, search]);
 
   const pickAndReadFile = useCallback(async (): Promise<string | null> => {
     const result = await DocumentPicker.getDocumentAsync({
