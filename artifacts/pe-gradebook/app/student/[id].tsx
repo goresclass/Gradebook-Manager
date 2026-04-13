@@ -256,6 +256,34 @@ export default function StudentDetailScreen() {
           <ScoreBadge mileTime={row.mileTime} score={score} size="lg" />
         </View>
 
+        {/* Run history — shown first for quick access */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.historySectionHead}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, paddingTop: 0 }]}>Run History</Text>
+            <Text style={[styles.historyCount, { color: colors.mutedForeground }]}>
+              {row.runs.length} {row.runs.length === 1 ? "entry" : "entries"}
+            </Text>
+          </View>
+          {row.runs.length === 0 ? (
+            <View style={styles.historyEmpty}>
+              <Feather name="clock" size={20} color={colors.mutedForeground} />
+              <Text style={[styles.historyEmptyText, { color: colors.mutedForeground }]}>
+                No saved runs yet. Use "Archive" on the main screen to save scores here.
+              </Text>
+            </View>
+          ) : (
+            row.runs.map(rec => (
+              <RunHistoryEntry
+                key={rec.id}
+                record={rec}
+                onDelete={() => handleDeleteRun(rec.id)}
+                onUpdateLabel={label => updateRunRecord(row.id, rec.id, { label })}
+                colors={colors}
+              />
+            ))
+          )}
+        </View>
+
         {/* Special codes helper */}
         <View style={[styles.helperCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Text style={[styles.helperTitle, { color: colors.mutedForeground }]}>Mile Time Codes</Text>
@@ -303,34 +331,6 @@ export default function StudentDetailScreen() {
             hint="Enter MU (make-up), MED (medical), ABS (absent), or EXC (excused)"
             value={row.mileTime}
           />
-        </View>
-
-        {/* Run history */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.historySectionHead}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, paddingTop: 0 }]}>Run History</Text>
-            <Text style={[styles.historyCount, { color: colors.mutedForeground }]}>
-              {row.runs.length} {row.runs.length === 1 ? "entry" : "entries"}
-            </Text>
-          </View>
-          {row.runs.length === 0 ? (
-            <View style={styles.historyEmpty}>
-              <Feather name="clock" size={20} color={colors.mutedForeground} />
-              <Text style={[styles.historyEmptyText, { color: colors.mutedForeground }]}>
-                No saved runs yet. Use "Archive Week" on the main screen to save scores here.
-              </Text>
-            </View>
-          ) : (
-            row.runs.map(rec => (
-              <RunHistoryEntry
-                key={rec.id}
-                record={rec}
-                onDelete={() => handleDeleteRun(rec.id)}
-                onUpdateLabel={label => updateRunRecord(row.id, rec.id, { label })}
-                colors={colors}
-              />
-            ))
-          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     minWidth: 80,
   },
-  runTime: { fontSize: 12 },
+  runTime: { fontSize: 17, fontWeight: "600" },
   runRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   runScoreBadge: {
     minWidth: 40,
