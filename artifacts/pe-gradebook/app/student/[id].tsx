@@ -400,6 +400,26 @@ export default function StudentDetailScreen() {
           <Field {...fieldProps} label="Photo URL" field="photoUrl" placeholder="https://..." mono hint="Optional: paste an image URL from your student roster" value={row.photoUrl} />
         </View>
 
+        {/* Notes */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Notes</Text>
+          <View style={[styles.notesField, { borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.notesInput, { color: colors.foreground }]}
+              value={row.notes}
+              onChangeText={val => handleChange("notes", val)}
+              placeholder="Add notes about this student…"
+              placeholderTextColor={colors.mutedForeground}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              autoCorrect={false}
+              autoCapitalize="sentences"
+              spellCheck={false}
+            />
+          </View>
+        </View>
+
         {/* Time fields */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Times</Text>
@@ -602,4 +622,17 @@ const styles = StyleSheet.create({
   },
   runScoreText: { fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
   runDeleteBtn: { padding: 2 },
+
+  notesField: {
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+  },
+  notesInput: {
+    fontSize: 15,
+    lineHeight: 22,
+    minHeight: 90,
+    paddingVertical: 0,
+  },
 });

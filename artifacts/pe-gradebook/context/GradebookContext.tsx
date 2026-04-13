@@ -28,6 +28,7 @@ export type StudentRow = {
   mileTime: string;
   runs: RunRecord[];
   photoUrl: string;
+  notes: string;
 };
 
 export type StudentRowWithScore = StudentRow & {
@@ -54,6 +55,7 @@ export function mkRow(overrides: Partial<StudentRow> = {}): StudentRow {
     mileTime: "",
     runs: [],
     photoUrl: "",
+    notes: "",
     ...overrides,
   };
 }
@@ -77,8 +79,8 @@ function csvRowToRow(raw: Record<string, string>): StudentRow {
   });
 }
 
-function ensureRuns(row: Omit<StudentRow, "runs" | "photoUrl"> & { runs?: RunRecord[]; photoUrl?: string }): StudentRow {
-  return { ...row, runs: row.runs ?? [], photoUrl: row.photoUrl ?? "" } as StudentRow;
+function ensureRuns(row: Omit<StudentRow, "runs" | "photoUrl" | "notes"> & { runs?: RunRecord[]; photoUrl?: string; notes?: string }): StudentRow {
+  return { ...row, runs: row.runs ?? [], photoUrl: row.photoUrl ?? "", notes: row.notes ?? "" } as StudentRow;
 }
 
 // ── Context type ───────────────────────────────────────────────────────────
