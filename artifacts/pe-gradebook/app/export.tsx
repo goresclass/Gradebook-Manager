@@ -26,7 +26,7 @@ import { SCORE_CFG, calcScore, getSpecial } from "@/utils/grading";
 export default function ExportScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, className, stats } = useGradebook();
+  const { rows, className, stats, classes } = useGradebook();
   const { gradingConfig } = useSettings();
 
   // ── CSV ─────────────────────────────────────────────────────────────────
@@ -141,6 +141,60 @@ export default function ExportScreen() {
     }
   };
 
+  // ── Semester history export ───────────────────────────────────────────────
+  const handleHistoryExport = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const headers = ["Class", "Roll Call", "Last Name", "First Name", "Student ID", "Run Date", "Mile Time", "Score"];
+      const dataRows: string[] = [];
+
+      for (const cls of classes) {
+        for (const r of cls.rows) {
+          if (!r.runs?.length) continue;
+          for (const run of r.runs) {
+            dataRows.push(
+              [cls.name, r.rollCall, r.lastName, r.firstName, r.studentId, run.label, run.mileTime, run.score ?? ""].map(escape).join(",")
+            );
+          }
+        }
+      }
+
+      if (!dataRows.length) {
+        Alert.alert("No History", "Archive some runs first before exporting history.");
+        return;
+      }
+
+      const csv = [headers.map(escape).join(","), ...dataRows].join("\n");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `run_history_${dateStr}.csv`;
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        const path = (FileSystem.cacheDirectory ?? "") + fileName;
+        await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Save Run History CSV" });
+        } else {
+          Alert.alert("Sharing not available", "Your device does not support file sharing.");
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Export Failed", "Could not generate the history CSV.");
+    }
+  };
+
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : 0;
 
@@ -228,6 +282,26 @@ export default function ExportScreen() {
               <Text style={[styles.actionLabel, { color: colors.foreground }]}>Share CSV File</Text>
               <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
                 Send via AirDrop, email, or other apps
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Semester history */}
+        <View style={[styles.actionsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.actionsTitle, { color: colors.mutedForeground }]}>Semester Records</Text>
+          <TouchableOpacity
+            onPress={handleHistoryExport}
+            style={[styles.actionRow, styles.lastActionRow, { borderColor: colors.border }]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#f3e8ff" }]}>
+              <Feather name="archive" size={18} color="#7c3aed" />
+            </View>
+            <View style={styles.actionText}>
+              <Text style={[styles.actionLabel, { color: colors.foreground }]}>Export All Run History</Text>
+              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
+                Every archived run across all periods — one row per entry
               </Text>
             </View>
             <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
