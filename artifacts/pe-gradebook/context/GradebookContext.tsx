@@ -115,6 +115,7 @@ type GradebookContextType = {
   updateRunRecord: (studentId: number, runId: string, updates: Partial<Pick<RunRecord, "label" | "mileTime">>) => void;
   renameRunLabel: (oldLabel: string, newLabel: string) => void;
   addRunRecord: (studentId: number, label: string, mileTime: string) => void;
+  moveStudentToPeriod: (studentId: number, targetClassId: string) => boolean;
   // Backup / restore
   restoreBackup: (classes: ClassRecord[], activeClassId: string) => void;
 };
@@ -339,6 +340,27 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
     });
   }, [updateActiveClass, gradingConfig]);
 
+  const moveStudentToPeriod = useCallback((studentId: number, targetClassId: string): boolean => {
+    let moved = false;
+    setClasses(prev => {
+      const srcClass = prev.find(c => c.id === activeClassId);
+      if (!srcClass) return prev;
+      const student = srcClass.rows.find(r => r.id === studentId);
+      if (!student) return prev;
+      moved = true;
+      return prev.map(c => {
+        if (c.id === activeClassId) {
+          return { ...c, rows: c.rows.filter(r => r.id !== studentId) };
+        }
+        if (c.id === targetClassId) {
+          return { ...c, rows: [...c.rows, student] };
+        }
+        return c;
+      });
+    });
+    return moved;
+  }, [activeClassId]);
+
   const updateRunRecord = useCallback((
     studentId: number,
     runId: string,
@@ -465,6 +487,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
         updateRunRecord,
         renameRunLabel,
         addRunRecord,
+        moveStudentToPeriod,
         restoreBackup,
       }}
     >

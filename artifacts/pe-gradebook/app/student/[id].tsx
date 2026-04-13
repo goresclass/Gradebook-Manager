@@ -144,7 +144,7 @@ export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, updateRow, deleteRow, deleteRunRecord, updateRunRecord, addRunRecord } = useGradebook();
+  const { rows, updateRow, deleteRow, deleteRunRecord, updateRunRecord, addRunRecord, moveStudentToPeriod, classes, activeClassId } = useGradebook();
   const [addingRun, setAddingRun] = useState(false);
   const [newRunLabel, setNewRunLabel] = useState("");
   const [newRunTime, setNewRunTime] = useState("");
@@ -189,6 +189,42 @@ export default function StudentDetailScreen() {
         },
       },
     ]);
+  };
+
+  const handleMoveToPeriod = () => {
+    const otherClasses = classes.filter(c => c.id !== activeClassId);
+    if (otherClasses.length === 0) {
+      Alert.alert("No Other Periods", "Add another period first, then move this student.");
+      return;
+    }
+    const studentName = [row.firstName, row.lastName].filter(Boolean).join(" ") || "this student";
+    Alert.alert(
+      "Move to Period",
+      `Select the period to move ${studentName} to. Their full run history will transfer with them.`,
+      [
+        ...otherClasses.map(cls => ({
+          text: cls.name,
+          onPress: () => {
+            Alert.alert(
+              "Confirm Move",
+              `Move ${studentName} to ${cls.name}?`,
+              [
+                { text: "Cancel", style: "cancel" as const },
+                {
+                  text: "Move",
+                  onPress: () => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    moveStudentToPeriod(row.id, cls.id);
+                    router.back();
+                  },
+                },
+              ]
+            );
+          },
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ]
+    );
   };
 
   const handleDeleteRun = (runId: string) => {
@@ -242,6 +278,9 @@ export default function StudentDetailScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {[row.firstName, row.lastName].filter(Boolean).join(" ") || "Edit Student"}
         </Text>
+        <TouchableOpacity onPress={handleMoveToPeriod} style={styles.moveBtn}>
+          <Feather name="corner-right-up" size={18} color="#94a3b8" />
+        </TouchableOpacity>
         <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
           <Feather name="trash-2" size={18} color="#f87171" />
         </TouchableOpacity>
@@ -419,6 +458,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: "600", color: "#f1f5f9" },
+  moveBtn: { padding: 4 },
   deleteBtn: { padding: 4 },
 
   scroll: { padding: 16, gap: 12 },
