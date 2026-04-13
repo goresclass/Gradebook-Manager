@@ -4,9 +4,9 @@ import React, { useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Image,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -24,6 +24,37 @@ type Props = {
   onDelete: (id: number) => void;
   onPress: (row: StudentRow) => void;
 };
+
+function initials(row: StudentRow): string {
+  const f = row.firstName?.[0] ?? "";
+  const l = row.lastName?.[0] ?? "";
+  return (f + l).toUpperCase() || "?";
+}
+
+function PhotoAvatar({ row, size = 40 }: { row: StudentRow; size?: number }) {
+  const colors = useColors() as Record<string, string>;
+  const [errored, setErrored] = useState(false);
+  const radius = size / 2;
+  const fontSize = size * 0.38;
+
+  if (row.photoUrl && !errored) {
+    return (
+      <Image
+        source={{ uri: row.photoUrl }}
+        style={[styles.avatar, { width: size, height: size, borderRadius: radius, borderColor: colors.border }]}
+        onError={() => setErrored(true)}
+      />
+    );
+  }
+
+  return (
+    <View style={[styles.avatar, styles.avatarFallback, { width: size, height: size, borderRadius: radius, backgroundColor: colors.secondary, borderColor: colors.border }]}>
+      <Text style={[styles.avatarInitials, { color: colors.mutedForeground, fontSize }]}>
+        {initials(row)}
+      </Text>
+    </View>
+  );
+}
 
 export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) {
   const colors = useColors() as Record<string, string>;
@@ -58,6 +89,7 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
         onPressOut={handlePressOut}
         style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
+        {/* Roll # badge */}
         <View style={styles.left}>
           <View style={[styles.rollBadge, { backgroundColor: colors.secondary }]}>
             <Text style={[styles.rollText, { color: colors.mutedForeground }]}>
@@ -66,6 +98,10 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
           </View>
         </View>
 
+        {/* Photo avatar */}
+        <PhotoAvatar row={row} size={40} />
+
+        {/* Name + time */}
         <View style={styles.middle}>
           <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
             {fullName}
@@ -92,6 +128,7 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
           </View>
         </View>
 
+        {/* Score */}
         <View style={styles.right}>
           <ScoreBadge mileTime={row.mileTime} score={score} />
         </View>
@@ -104,15 +141,17 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
   );
 }
 
+export { PhotoAvatar };
+
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
     borderWidth: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 14,
-    gap: 12,
+    gap: 10,
     marginBottom: 8,
   },
   left: {
@@ -129,6 +168,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
+  },
+  avatar: {
+    borderWidth: 1,
+  },
+  avatarFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    fontWeight: "700",
   },
   middle: {
     flex: 1,

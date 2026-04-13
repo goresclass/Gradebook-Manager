@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PhotoAvatar } from "@/components/StudentCard";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useGradebook, StudentRow, RunRecord } from "@/context/GradebookContext";
 import { useSettings } from "@/context/SettingsContext";
@@ -202,6 +203,7 @@ export default function StudentDetailScreen() {
       >
         {/* Score summary card */}
         <View style={[styles.scoreCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <PhotoAvatar row={row} size={56} />
           <View style={styles.scoreCardLeft}>
             <Text style={[styles.scoreCardTitle, { color: colors.foreground }]}>Current Score</Text>
             {cfg ? (
@@ -243,6 +245,7 @@ export default function StudentDetailScreen() {
           <Field {...fieldProps} label="Last Name" field="lastName" placeholder="Last name" value={row.lastName} />
           <Field {...fieldProps} label="Student ID" field="studentId" placeholder="Student ID" mono value={row.studentId} />
           <Field {...fieldProps} label="Roll Call #" field="rollCall" placeholder="#" mono value={row.rollCall} />
+          <Field {...fieldProps} label="Photo URL" field="photoUrl" placeholder="https://..." mono hint="Optional: paste an image URL from your student roster" value={row.photoUrl} />
         </View>
 
         {/* Time fields */}
@@ -322,6 +325,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
