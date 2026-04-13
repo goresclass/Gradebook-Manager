@@ -19,7 +19,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ## PE Gradebook App (`artifacts/pe-gradebook`)
 
 - **Framework**: Expo (React Native) with Expo Router v3, file-based routing
-- **State**: `GradebookContext` (AsyncStorage key `pe_gb_mobile_v1`) + `SettingsContext` (AsyncStorage key `pe_gb_settings_v1`)
+- **State**: `GradebookContext` (AsyncStorage key `pe_gb_mobile_v1`, v2 format: `{ classes: ClassRecord[], activeClassId: string }`, migrates from v1 `{ rows, className }` on first load) + `SettingsContext` (AsyncStorage key `pe_gb_settings_v1`)
+- **Multi-period**: `ClassRecord[]` in GradebookContext; `addClass`, `deleteClass`, `setActiveClass` actions; all row ops proxy to active class; period switcher chips in header of index.tsx
 - **Grading**: `utils/grading.ts` — `calcScore(mileTime, ttb, gradingConfig)`, `getSpecial(mileTime, gradingConfig)`, `GradingConfig` type
 - **Settings**: `SettingsContext` wraps `GradebookProvider`; grading thresholds (tier90MaxSecs, tier80MaxSecs, threshold65Secs, threshold50Secs) and special code labels (mu/med/abs/exc) are fully customizable and persisted
 - **Tabs**: Gradebook (index), Quick Reference, Settings

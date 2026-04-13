@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,15 +25,142 @@ import { SCORE_CFG } from "@/utils/grading";
 
 type SortField = "rollCall" | "lastName" | "firstName" | "score";
 
+// ── Period Switcher ──────────────────────────────────────────────────────────
+
+type PeriodSwitcherProps = {
+  colors: Record<string, string>;
+};
+
+function PeriodSwitcher({ colors }: PeriodSwitcherProps) {
+  const { classes, activeClassId, setActiveClass, addClass, deleteClass, setClassName, className } = useGradebook();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const scrollRef = useRef<ScrollView>(null);
+
+  const handleChipPress = (id: string) => {
+    if (id === activeClassId) {
+      // Start editing the active class name
+      setEditValue(className);
+      setEditingId(id);
+    } else {
+      Haptics.selectionAsync();
+      setActiveClass(id);
+    }
+  };
+
+  const commitEdit = () => {
+    if (editingId && editValue.trim()) {
+      setClassName(editValue.trim());
+    }
+    setEditingId(null);
+  };
+
+  const handleAddClass = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const nextNum = classes.length + 1;
+    const defaultName = `Period ${nextNum}`;
+    const newId = addClass(defaultName);
+    // Start editing the new period name immediately after render
+    setTimeout(() => {
+      setEditValue(defaultName);
+      setEditingId(newId);
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 80);
+  };
+
+  const handleDeletePress = (id: string) => {
+    if (classes.length <= 1) {
+      Alert.alert("Cannot Delete", "You need at least one class period.");
+      return;
+    }
+    const cls = classes.find(c => c.id === id);
+    const studentCount = cls?.rows.filter(r => r.rollCall || r.lastName || r.firstName || r.mileTime).length ?? 0;
+    const detail = studentCount > 0
+      ? `This will remove all ${studentCount} student${studentCount !== 1 ? "s" : ""} in this period. This cannot be undone.`
+      : "This cannot be undone.";
+    Alert.alert(`Delete "${cls?.name ?? "this period"}"?`, detail, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          deleteClass(id);
+        },
+      },
+    ]);
+  };
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.periodRow}
+    >
+      {classes.map(cls => {
+        const isActive = cls.id === activeClassId;
+        const isEditing = editingId === cls.id;
+        return (
+          <View key={cls.id} style={[
+            styles.periodChip,
+            isActive ? { backgroundColor: colors.primary } : { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 },
+          ]}>
+            {isEditing ? (
+              <TextInput
+                autoFocus
+                value={editValue}
+                onChangeText={setEditValue}
+                onBlur={commitEdit}
+                onSubmitEditing={commitEdit}
+                returnKeyType="done"
+                style={[styles.periodChipInput, { color: "#fff" }]}
+                selectTextOnFocus
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => handleChipPress(cls.id)}
+                onLongPress={() => handleDeletePress(cls.id)}
+                delayLongPress={400}
+                style={styles.periodChipInner}
+              >
+                <Text style={[
+                  styles.periodChipText,
+                  { color: isActive ? "#fff" : colors.mutedForeground },
+                  isActive && styles.periodChipTextActive,
+                ]}>
+                  {cls.name}
+                </Text>
+                {isActive && (
+                  <Feather name="edit-2" size={10} color="rgba(255,255,255,0.6)" style={{ marginLeft: 4 }} />
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        );
+      })}
+
+      {/* Add period button */}
+      <TouchableOpacity
+        onPress={handleAddClass}
+        style={[styles.periodAddBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+      >
+        <Feather name="plus" size={14} color={colors.mutedForeground} />
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function GradebookScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, ready, className, setClassName, addRow, deleteRow, updateRow, clearAll, importCSV, withScores, stats } = useGradebook();
+  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, withScores, stats, className } = useGradebook();
 
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortField>("rollCall");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
-  const [editingClass, setEditingClass] = useState(false);
 
   const handleSort = useCallback((col: SortField) => {
     Haptics.selectionAsync();
@@ -76,7 +203,6 @@ export default function GradebookScreen() {
         Alert.alert("Unsupported File", "Please select a .csv or .txt file exported from a spreadsheet app.", [{ text: "OK" }]);
         return;
       }
-      // Use fetch() which reliably handles all URI types (file://, content://, etc.)
       const response = await fetch(asset.uri);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = await response.text();
@@ -91,15 +217,15 @@ export default function GradebookScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("Imported", `${count} student${count !== 1 ? "s" : ""} imported successfully.`);
       }
-    } catch (e) {
-      Alert.alert("Import Error", "Could not read the selected file. Make sure it is a plain .csv file (not an Excel format).");
+    } catch {
+      Alert.alert("Import Error", "Could not read the selected file. Make sure it is a plain .csv file.");
     }
   }, [importCSV]);
 
   const handleClearAll = () => {
     Alert.alert(
       "Clear All Student Data?",
-      "This will delete every row and start a fresh sheet. This cannot be undone.",
+      `This will delete every row in "${className}" and start a fresh sheet. This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -138,31 +264,13 @@ export default function GradebookScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.header, paddingTop: topPad + 14 }]}>
+        {/* Top row: logo + title + actions */}
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
             <View style={[styles.logo, { backgroundColor: colors.primary }]}>
               <Feather name="activity" size={18} color="#fff" />
             </View>
-            <View>
-              <Text style={styles.headerTitle}>Mile Run Grader</Text>
-              {editingClass ? (
-                <TextInput
-                  autoFocus
-                  value={className}
-                  onChangeText={setClassName}
-                  onBlur={() => setEditingClass(false)}
-                  style={styles.classInput}
-                  returnKeyType="done"
-                  onSubmitEditing={() => setEditingClass(false)}
-                />
-              ) : (
-                <TouchableOpacity onPress={() => setEditingClass(true)}>
-                  <Text style={styles.className}>
-                    {className} <Feather name="edit-2" size={11} color="#94a3b8" />
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <Text style={styles.headerTitle}>Mile Run Grader</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -191,6 +299,9 @@ export default function GradebookScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Period switcher */}
+        <PeriodSwitcher colors={colors} />
 
         {/* Search */}
         <View style={[styles.searchBar, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
@@ -290,21 +401,53 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 15 },
 
   header: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   logo: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontWeight: "700", color: "#f1f5f9" },
-  className: { fontSize: 12, color: "#94a3b8" },
-  classInput: {
-    fontSize: 12,
-    color: "#e2e8f0",
-    borderBottomWidth: 1,
-    borderBottomColor: "#3b82f6",
-    paddingVertical: 1,
-    minWidth: 100,
-  },
   headerActions: { flexDirection: "row", gap: 8 },
   actionBtn: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+
+  // Period switcher
+  periodRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingBottom: 10,
+    alignItems: "center",
+  },
+  periodChip: {
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    minWidth: 70,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  periodChipInner: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  periodChipText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  periodChipTextActive: {
+    fontWeight: "700",
+  },
+  periodChipInput: {
+    fontSize: 13,
+    fontWeight: "700",
+    minWidth: 80,
+    paddingVertical: 0,
+  },
+  periodAddBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
 
   searchBar: {
     flexDirection: "row",

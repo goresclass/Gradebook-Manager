@@ -5,6 +5,7 @@ import { calcScore, getField, getSpecial, normalizeKey } from "@/utils/grading";
 import { useSettings } from "@/context/SettingsContext";
 
 let _uid = Date.now();
+let _classUid = Date.now() + 1000000;
 
 export type StudentRow = {
   id: number;
@@ -21,6 +22,12 @@ export type StudentRowWithScore = StudentRow & {
   score: number | null;
 };
 
+export type ClassRecord = {
+  id: string;
+  name: string;
+  rows: StudentRow[];
+};
+
 export function mkRow(overrides: Partial<StudentRow> = {}): StudentRow {
   return {
     id: ++_uid,
@@ -32,6 +39,14 @@ export function mkRow(overrides: Partial<StudentRow> = {}): StudentRow {
     mileTime: "",
     ...overrides,
   };
+}
+
+function newClassId(): string {
+  return String(++_classUid);
+}
+
+function makeClass(name: string): ClassRecord {
+  return { id: newClassId(), name, rows: [mkRow()] };
 }
 
 function csvRowToRow(raw: Record<string, string>): StudentRow {
@@ -46,6 +61,13 @@ function csvRowToRow(raw: Record<string, string>): StudentRow {
 }
 
 type GradebookContextType = {
+  // Multi-class management
+  classes: ClassRecord[];
+  activeClassId: string;
+  setActiveClass: (id: string) => void;
+  addClass: (name?: string) => string;
+  deleteClass: (id: string) => void;
+  // Active-class proxies (same API as before)
   rows: StudentRow[];
   ready: boolean;
   className: string;
@@ -71,58 +93,128 @@ const STORAGE_KEY = "pe_gb_mobile_v1";
 
 export function GradebookProvider({ children }: { children: React.ReactNode }) {
   const { gradingConfig } = useSettings();
-  const [rows, setRows] = useState<StudentRow[]>([]);
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [activeClassId, setActiveClassId] = useState<string>("");
   const [ready, setReady] = useState(false);
-  const [className, setClassName] = useState("Period 2");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Load & migrate ────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
         if (saved) {
-          const { rows: r, className: cn } = JSON.parse(saved);
-          if (r?.length) {
-            _uid = Math.max(...r.map((x: StudentRow) => x.id || 0));
-            setRows(r);
+          const parsed = JSON.parse(saved);
+
+          // v2 format: { classes: [...], activeClassId: "..." }
+          if (parsed.classes && Array.isArray(parsed.classes) && parsed.classes.length > 0) {
+            // Ensure every class has at least one row
+            const loadedClasses: ClassRecord[] = parsed.classes.map((c: ClassRecord) => ({
+              ...c,
+              rows: Array.isArray(c.rows) && c.rows.length > 0 ? c.rows : [mkRow()],
+            }));
+            const maxId = Math.max(...loadedClasses.flatMap(c => c.rows.map((r: StudentRow) => r.id || 0)));
+            if (maxId > _uid) _uid = maxId;
+            setClasses(loadedClasses);
+            const activeExists = loadedClasses.some(c => c.id === parsed.activeClassId);
+            setActiveClassId(activeExists ? parsed.activeClassId : loadedClasses[0].id);
+
+          // v1 format: { rows: [...], className: "..." }
+          } else if (parsed.rows && Array.isArray(parsed.rows)) {
+            const migratedRows: StudentRow[] = parsed.rows.length > 0 ? parsed.rows : [mkRow()];
+            const maxId = Math.max(...migratedRows.map((r: StudentRow) => r.id || 0));
+            if (maxId > _uid) _uid = maxId;
+            const migrated = makeClass(parsed.className || "Period 1");
+            migrated.rows = migratedRows;
+            setClasses([migrated]);
+            setActiveClassId(migrated.id);
+
           } else {
-            setRows([mkRow()]);
+            const initial = makeClass("Period 1");
+            setClasses([initial]);
+            setActiveClassId(initial.id);
           }
-          if (cn) setClassName(cn);
         } else {
-          setRows([mkRow()]);
+          const initial = makeClass("Period 1");
+          setClasses([initial]);
+          setActiveClassId(initial.id);
         }
       } catch {
-        setRows([mkRow()]);
+        const initial = makeClass("Period 1");
+        setClasses([initial]);
+        setActiveClassId(initial.id);
       }
       setReady(true);
     })();
   }, []);
 
+  // ── Persist ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!ready) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ rows, className })).catch(() => {});
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ classes, activeClassId })).catch(() => {});
     }, 500);
-  }, [rows, className, ready]);
+  }, [classes, activeClassId, ready]);
+
+  // ── Active class helpers ──────────────────────────────────────────────────
+  const activeClass = classes.find(c => c.id === activeClassId) ?? classes[0];
+  const rows = activeClass?.rows ?? [];
+  const className = activeClass?.name ?? "";
+
+  const updateActiveClass = useCallback((updater: (c: ClassRecord) => ClassRecord) => {
+    setClasses(prev => prev.map(c => c.id === activeClassId ? updater(c) : c));
+  }, [activeClassId]);
+
+  // ── Multi-class actions ───────────────────────────────────────────────────
+  const setActiveClass = useCallback((id: string) => {
+    setActiveClassId(id);
+  }, []);
+
+  const addClass = useCallback((name?: string): string => {
+    const nextNum = classes.length + 1;
+    const newClass = makeClass(name ?? `Period ${nextNum}`);
+    setClasses(prev => [...prev, newClass]);
+    setActiveClassId(newClass.id);
+    return newClass.id;
+  }, [classes.length]);
+
+  const deleteClass = useCallback((id: string) => {
+    setClasses(prev => {
+      if (prev.length <= 1) return prev; // cannot delete last class
+      const next = prev.filter(c => c.id !== id);
+      setActiveClassId(cur => {
+        if (cur === id) return next[0].id;
+        return cur;
+      });
+      return next;
+    });
+  }, []);
+
+  // ── Row actions (operate on active class) ─────────────────────────────────
+  const setClassName = useCallback((name: string) => {
+    updateActiveClass(c => ({ ...c, name }));
+  }, [updateActiveClass]);
 
   const updateRow = useCallback((id: number, field: keyof StudentRow, val: string) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, [field]: val } : r));
-  }, []);
+    updateActiveClass(c => ({ ...c, rows: c.rows.map(r => r.id === id ? { ...r, [field]: val } : r) }));
+  }, [updateActiveClass]);
 
   const addRow = useCallback(() => {
-    setRows(prev => [...prev, mkRow()]);
-  }, []);
+    updateActiveClass(c => ({ ...c, rows: [...c.rows, mkRow()] }));
+  }, [updateActiveClass]);
 
   const deleteRow = useCallback((id: number) => {
-    setRows(prev => prev.length > 1 ? prev.filter(r => r.id !== id) : prev);
-  }, []);
+    updateActiveClass(c => ({
+      ...c,
+      rows: c.rows.length > 1 ? c.rows.filter(r => r.id !== id) : c.rows,
+    }));
+  }, [updateActiveClass]);
 
   const clearAll = useCallback(() => {
     _uid = Date.now();
-    setRows([mkRow()]);
-  }, []);
+    updateActiveClass(c => ({ ...c, rows: [mkRow()] }));
+  }, [updateActiveClass]);
 
   const importCSV = useCallback((text: string): { count: number; error?: string } => {
     try {
@@ -137,16 +229,17 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
       });
       const valid = parsed.filter(r => r.rollCall || r.lastName || r.firstName || r.mileTime);
       if (!valid.length) return { count: 0, error: "No valid rows found in file" };
-      setRows(prev => {
-        const keep = prev.filter(r => r.studentId || r.rollCall || r.lastName || r.firstName || r.mileTime);
-        return [...keep, ...valid];
+      updateActiveClass(c => {
+        const keep = c.rows.filter(r => r.studentId || r.rollCall || r.lastName || r.firstName || r.mileTime);
+        return { ...c, rows: [...keep, ...valid] };
       });
       return { count: valid.length };
     } catch {
       return { count: 0, error: "Could not parse file" };
     }
-  }, []);
+  }, [updateActiveClass]);
 
+  // ── Derived scores ────────────────────────────────────────────────────────
   const withScores: StudentRowWithScore[] = rows.map(r => ({
     ...r,
     _special: getSpecial(r.mileTime, gradingConfig),
@@ -166,6 +259,11 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
   return (
     <GradebookContext.Provider
       value={{
+        classes,
+        activeClassId,
+        setActiveClass,
+        addClass,
+        deleteClass,
         rows,
         ready,
         className,
