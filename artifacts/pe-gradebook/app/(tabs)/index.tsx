@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -156,7 +157,8 @@ function PeriodSwitcher({ colors }: PeriodSwitcherProps) {
 export default function GradebookScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, importMileTimes, withScores, stats, className, archiveRuns } = useGradebook();
+  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, importMileTimes, withScores, stats, className, archiveRuns, renameRunLabel } = useGradebook();
+  const [showDatesModal, setShowDatesModal] = useState(false);
 
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortField>("rollCall");
@@ -261,15 +263,54 @@ export default function GradebookScreen() {
     );
   }, [importCSV, importMileTimes, pickAndReadFile]);
 
+  const hasArchivedRuns = rows.some(r => r.runs.length > 0);
+
   const handleArchiveRuns = () => {
     const withTime = rows.filter(r => r.mileTime.trim()).length;
+
+    if (hasArchivedRuns) {
+      const archiveOption = withTime > 0
+        ? [{
+            text: "Archive Current Run",
+            onPress: () => {
+              Alert.alert(
+                "Archive Run Scores",
+                `Save mile times for ${withTime} student${withTime !== 1 ? "s" : ""} in "${className}"?`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Archive",
+                    onPress: () => {
+                      const count = archiveRuns();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert("Archived", `${count} run${count !== 1 ? "s" : ""} saved.`);
+                    },
+                  },
+                ]
+              );
+            },
+          }]
+        : [];
+
+      Alert.alert(
+        "Archive",
+        withTime > 0 ? "Archive now or edit past run dates?" : "No times to archive — edit past dates?",
+        [
+          ...archiveOption,
+          { text: "Edit Archive Dates", onPress: () => setShowDatesModal(true) },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
     if (withTime === 0) {
       Alert.alert("Nothing to Archive", "No students in this period have a mile time entered yet.");
       return;
     }
     Alert.alert(
-      `Archive Run Scores`,
-      `Save the current mile times for all ${withTime} student${withTime !== 1 ? "s" : ""} in "${className}" as a dated history entry?\n\nCurrent times stay in the gradebook — you can update them next week.`,
+      "Archive Run Scores",
+      `Save the current mile times for all ${withTime} student${withTime !== 1 ? "s" : ""} in "${className}" as a dated history entry?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -459,9 +500,222 @@ export default function GradebookScreen() {
           ) : null
         }
       />
+
+      {/* ── Archive Dates Modal ── */}
+      <ArchiveDatesModal
+        visible={showDatesModal}
+        rows={rows}
+        colors={colors}
+        onRename={renameRunLabel}
+        onClose={() => setShowDatesModal(false)}
+      />
     </View>
   );
 }
+
+// ── Archive Dates Modal ───────────────────────────────────────────────────────
+
+type ArchiveDatesModalProps = {
+  visible: boolean;
+  rows: import("@/context/GradebookContext").StudentRow[];
+  colors: Record<string, string>;
+  onRename: (oldLabel: string, newLabel: string) => void;
+  onClose: () => void;
+};
+
+function ArchiveDatesModal({ visible, rows, colors, onRename, onClose }: ArchiveDatesModalProps) {
+  // Collect unique labels ordered by most-recent first
+  const uniqueLabels = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of rows) {
+      for (const run of r.runs) {
+        if (!seen.has(run.label)) { seen.add(run.label); out.push(run.label); }
+      }
+    }
+    return out;
+  }, [rows]);
+
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  // Keep drafts in sync when labels change
+  React.useEffect(() => {
+    if (visible) {
+      const initial: Record<string, string> = {};
+      uniqueLabels.forEach(l => { initial[l] = l; });
+      setDrafts(initial);
+    }
+  }, [visible, uniqueLabels]);
+
+  const countFor = (label: string) =>
+    rows.reduce((n, r) => n + r.runs.filter(rec => rec.label === label).length, 0);
+
+  const commitRename = (oldLabel: string) => {
+    const newLabel = drafts[oldLabel]?.trim();
+    if (newLabel && newLabel !== oldLabel) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onRename(oldLabel, newLabel);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={dmStyles.overlay}>
+        <View style={[dmStyles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Header */}
+          <View style={[dmStyles.sheetHeader, { borderColor: colors.border }]}>
+            <View style={[dmStyles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[dmStyles.sheetTitle, { color: colors.foreground }]}>Edit Archive Dates</Text>
+            <Text style={[dmStyles.sheetSub, { color: colors.mutedForeground }]}>
+              Changes apply to every student in this period
+            </Text>
+          </View>
+
+          {uniqueLabels.length === 0 ? (
+            <View style={dmStyles.empty}>
+              <Feather name="clock" size={28} color={colors.mutedForeground} />
+              <Text style={[dmStyles.emptyText, { color: colors.mutedForeground }]}>
+                No archived runs yet
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={dmStyles.list} keyboardShouldPersistTaps="handled">
+              {uniqueLabels.map((label, idx) => (
+                <View
+                  key={label}
+                  style={[
+                    dmStyles.dateRow,
+                    { borderColor: colors.border },
+                    idx === 0 && { borderTopWidth: 0 },
+                  ]}
+                >
+                  <View style={dmStyles.dateLeft}>
+                    <View style={[dmStyles.dateIcon, { backgroundColor: colors.secondary }]}>
+                      <Feather name="calendar" size={14} color={colors.primary} />
+                    </View>
+                    <View style={dmStyles.dateFields}>
+                      <TextInput
+                        style={[dmStyles.dateInput, { color: colors.foreground, borderColor: colors.border }]}
+                        value={drafts[label] ?? label}
+                        onChangeText={val => setDrafts(prev => ({ ...prev, [label]: val }))}
+                        onBlur={() => commitRename(label)}
+                        onSubmitEditing={() => commitRename(label)}
+                        returnKeyType="done"
+                        autoCorrect={false}
+                        selectTextOnFocus
+                      />
+                      <Text style={[dmStyles.dateCount, { color: colors.mutedForeground }]}>
+                        {countFor(label)} student{countFor(label) !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                  </View>
+                  {drafts[label]?.trim() !== label && drafts[label]?.trim() ? (
+                    <TouchableOpacity
+                      onPress={() => commitRename(label)}
+                      style={[dmStyles.savePill, { backgroundColor: colors.primary }]}
+                    >
+                      <Text style={dmStyles.savePillText}>Save</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Feather name="edit-2" size={14} color={colors.mutedForeground} />
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity
+            onPress={onClose}
+            style={[dmStyles.doneBtn, { backgroundColor: colors.primary }]}
+          >
+            <Text style={dmStyles.doneBtnText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const dmStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  sheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    maxHeight: "75%",
+    paddingBottom: 34,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  sheetHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    gap: 2,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
+  sheetSub: { fontSize: 12, textAlign: "center" },
+  empty: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingVertical: 40,
+  },
+  emptyText: { fontSize: 14 },
+  list: { flexGrow: 0 },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    gap: 10,
+  },
+  dateLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  dateIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  dateFields: { flex: 1, gap: 2 },
+  dateInput: {
+    fontSize: 15,
+    fontWeight: "600",
+    borderBottomWidth: 1,
+    paddingVertical: 2,
+  },
+  dateCount: { fontSize: 11 },
+  savePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    flexShrink: 0,
+  },
+  savePillText: { fontSize: 12, fontWeight: "700", color: "#fff" },
+  doneBtn: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  doneBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
