@@ -144,7 +144,10 @@ export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, updateRow, deleteRow, deleteRunRecord, updateRunRecord } = useGradebook();
+  const { rows, updateRow, deleteRow, deleteRunRecord, updateRunRecord, addRunRecord } = useGradebook();
+  const [addingRun, setAddingRun] = useState(false);
+  const [newRunLabel, setNewRunLabel] = useState("");
+  const [newRunTime, setNewRunTime] = useState("");
   const { gradingConfig } = useSettings();
   const SPECIAL = buildSpecial(gradingConfig);
   const numId = parseInt(id, 10);
@@ -200,6 +203,19 @@ export default function StudentDetailScreen() {
         },
       },
     ]);
+  };
+
+  const handleSaveNewRun = () => {
+    const time = newRunTime.trim();
+    if (!time) {
+      Alert.alert("Missing Time", "Please enter a mile time before saving.");
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    addRunRecord(row.id, newRunLabel, time);
+    setAddingRun(false);
+    setNewRunLabel("");
+    setNewRunTime("");
   };
 
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
@@ -259,16 +275,67 @@ export default function StudentDetailScreen() {
         {/* Run history — shown first for quick access */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.historySectionHead}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, paddingTop: 0 }]}>Run History</Text>
-            <Text style={[styles.historyCount, { color: colors.mutedForeground }]}>
-              {row.runs.length} {row.runs.length === 1 ? "entry" : "entries"}
-            </Text>
+            <View>
+              <Text style={[styles.sectionTitle, { color: colors.foreground, paddingTop: 0 }]}>Run History</Text>
+              <Text style={[styles.historyCount, { color: colors.mutedForeground }]}>
+                {row.runs.length} {row.runs.length === 1 ? "entry" : "entries"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => { Haptics.selectionAsync(); setAddingRun(a => !a); setNewRunLabel(""); setNewRunTime(""); }}
+              style={[styles.addRunBtn, { backgroundColor: addingRun ? colors.secondary : colors.primary + "22", borderColor: addingRun ? colors.border : colors.primary }]}
+            >
+              <Feather name={addingRun ? "x" : "plus"} size={14} color={addingRun ? colors.mutedForeground : colors.primary} />
+              <Text style={[styles.addRunBtnText, { color: addingRun ? colors.mutedForeground : colors.primary }]}>
+                {addingRun ? "Cancel" : "Add Run"}
+              </Text>
+            </TouchableOpacity>
           </View>
-          {row.runs.length === 0 ? (
+
+          {/* Inline add form */}
+          {addingRun && (
+            <View style={[styles.addRunForm, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+              <Text style={[styles.addRunFormTitle, { color: colors.foreground }]}>New Run Entry</Text>
+              <View style={[styles.addRunField, { borderColor: colors.border }]}>
+                <Text style={[styles.addRunFieldLabel, { color: colors.mutedForeground }]}>Date / Label</Text>
+                <TextInput
+                  style={[styles.addRunFieldInput, { color: colors.foreground }]}
+                  placeholder={new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={newRunLabel}
+                  onChangeText={setNewRunLabel}
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[styles.addRunField, { borderColor: colors.border }]}>
+                <Text style={[styles.addRunFieldLabel, { color: colors.mutedForeground }]}>Mile Time</Text>
+                <TextInput
+                  style={[styles.addRunFieldInput, { color: colors.foreground, fontFamily: "monospace" }]}
+                  placeholder="MM.SS (e.g. 9.30)"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={newRunTime}
+                  onChangeText={setNewRunTime}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveNewRun}
+                />
+              </View>
+              <TouchableOpacity
+                onPress={handleSaveNewRun}
+                style={[styles.addRunSaveBtn, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="check" size={14} color="#fff" />
+                <Text style={styles.addRunSaveBtnText}>Save to History</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {row.runs.length === 0 && !addingRun ? (
             <View style={styles.historyEmpty}>
               <Feather name="clock" size={20} color={colors.mutedForeground} />
               <Text style={[styles.historyEmptyText, { color: colors.mutedForeground }]}>
-                No saved runs yet. Use "Archive" on the main screen to save scores here.
+                No saved runs yet. Tap "+ Add Run" to enter a past time manually.
               </Text>
             </View>
           ) : (
@@ -428,6 +495,42 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   historyEmptyText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  addRunBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  addRunBtnText: { fontSize: 13, fontWeight: "600" },
+  addRunForm: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  addRunFormTitle: { fontSize: 13, fontWeight: "700", marginBottom: 2 },
+  addRunField: {
+    borderBottomWidth: 1,
+    paddingBottom: 8,
+    gap: 3,
+  },
+  addRunFieldLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  addRunFieldInput: { fontSize: 16, paddingVertical: 2 },
+  addRunSaveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  addRunSaveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   runRow: {
     flexDirection: "row",
     alignItems: "center",
