@@ -147,10 +147,11 @@ export default function QuickReferenceScreen() {
         <View style={[styles.navNote, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Feather name="info" size={13} color={colors.mutedForeground} style={{ marginTop: 1 }} />
           <Text style={[styles.navNoteText, { color: colors.mutedForeground }]}>
-            Use the bottom tab bar to switch between <Text style={{ color: colors.foreground, fontWeight: "600" }}>Gradebook</Text>,{" "}
+            Use the bottom tab bar to switch between{" "}
+            <Text style={{ color: colors.foreground, fontWeight: "600" }}>Gradebook</Text>,{" "}
             <Text style={{ color: colors.foreground, fontWeight: "600" }}>Quick Reference</Text>, and{" "}
             <Text style={{ color: colors.foreground, fontWeight: "600" }}>Settings</Text>.
-            Grading thresholds and status labels can be customized in Settings.
+            {" "}Manage multiple class periods from the Gradebook tab. Grading thresholds, status labels, and app theme can be customized in Settings.
           </Text>
         </View>
 
@@ -192,15 +193,72 @@ export default function QuickReferenceScreen() {
           </Text>
         </View>
 
+        {/* Class Periods */}
+        <SectionHeader icon="🗂" title="CLASS PERIODS" colors={colors} />
+        <View style={[styles.table, { borderColor: colors.border }]}>
+          <TwoColHeader col1="Action" col2="How" colors={colors} />
+          <TwoColRow col1="Add period"      col2="Tap + in the period switcher at the top of Gradebook" colors={colors} />
+          <TwoColRow col1="Rename period"   col2="Tap the period name to edit it inline" colors={colors} />
+          <TwoColRow col1="Switch period"   col2="Tap any period tab in the switcher" colors={colors} />
+          <TwoColRow col1="Delete period"   col2="Long-press a period tab, then confirm" colors={colors} />
+        </View>
+        <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
+            Each period has its own independent roster and run data. Export and archive operate on the currently active period only.
+          </Text>
+        </View>
+
+        {/* Run Archiving */}
+        <SectionHeader icon="📦" title="ARCHIVING RUNS" colors={colors} />
+        <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingsBlock
+            icon="📷"
+            title="Archive This Run Cycle"
+            colors={colors}
+            body={
+              <>
+                <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
+                  Found in the Gradebook toolbar. Snapshots every student's current mile time (with date and score) into their run history, then clears the Mile Time column so the class is ready for the next run cycle.
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>TTB is preserved</Text>{"  "}Personal benchmarks are never cleared
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>History per student</Text>{"  "}View all past runs on the student detail screen
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Semester export</Text>{"  "}Export every archived run across all periods from the Export screen
+                </Text>
+              </>
+            }
+          />
+        </View>
+
+        {/* Export Screen */}
+        <SectionHeader icon="↓" title="EXPORT SCREEN" colors={colors} />
+        <View style={[styles.table, { borderColor: colors.border }]}>
+          <TwoColHeader col1="Option" col2="What You Get" colors={colors} />
+          <TwoColRow col1="Export as Excel (.xlsx)"    col2="Real .xlsx file — upload directly to Aeries" colors={colors} />
+          <TwoColRow col1="Copy CSV to Clipboard"      col2="Paste into Google Sheets or Numbers" colors={colors} />
+          <TwoColRow col1="Share CSV File"             col2="Send via AirDrop, email, or other apps" colors={colors} />
+          <TwoColRow col1="Export All Run History"     col2="Every archived run across all periods, one row per entry" colors={colors} />
+        </View>
+        <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
+            The current-grades exports (Excel/CSV) include: Student ID, Roll Call, Last Name, First Name, TTB, Mile Time, Score.{"\n"}
+            The Run History export adds: Class, Run Date columns covering all semesters.
+          </Text>
+        </View>
+
         {/* Toolbar Buttons */}
         <SectionHeader icon="🖱" title="TOOLBAR BUTTONS" colors={colors} />
         <View style={[styles.table, { borderColor: colors.border }]}>
           <TwoColHeader col1="Button" col2="What It Does" colors={colors} />
-          <TwoColRow col1="↑ Import CSV/XLSX"  col2="Load a roster or data file" colors={colors} />
-          <TwoColRow col1="↓ Export CSV"       col2="Download grades as a spreadsheet" colors={colors} />
-          <TwoColRow col1="+ Add Student"      col2="Append a blank row to the list" colors={colors} />
-          <TwoColRow col1="Clear All"          col2="Wipe sheet and start fresh (confirms first)" colors={colors} />
-          <TwoColRow col1="Class / Period"     col2="Sets the export filename" colors={colors} />
+          <TwoColRow col1="↑ Import CSV/XLSX"   col2="Load a roster or data file" colors={colors} />
+          <TwoColRow col1="↓ Export"            col2="Open the export screen for grades & history" colors={colors} />
+          <TwoColRow col1="📦 Archive"           col2="Snapshot run times, then clear Mile Time column" colors={colors} />
+          <TwoColRow col1="+ Add Student"       col2="Append a blank row to the list" colors={colors} />
+          <TwoColRow col1="Sort / Filter"       col2="Tap any column header to sort; tap again to reverse" colors={colors} />
         </View>
 
         {/* Column Guide */}
@@ -210,8 +268,9 @@ export default function QuickReferenceScreen() {
           <TwoColRow col1="Roll"           col2="Roll # — sorts numerically" colors={colors} />
           <TwoColRow col1="Student ID"     col2="Included in CSV export" colors={colors} />
           <TwoColRow col1="Last / First"   col2="Student name fields" colors={colors} />
-          <TwoColRow col1="Time to Beat"   col2="Personal benchmark in MM.SS" colors={colors} />
-          <TwoColRow col1="Mile Time"      col2="Run time MM.SS or a status code" colors={colors} />
+          <TwoColRow col1="Photo"          col2="URL for student photo (circular avatar with initials fallback)" colors={colors} />
+          <TwoColRow col1="Time to Beat"   col2="Personal benchmark in MM.SS — preserved across archives" colors={colors} />
+          <TwoColRow col1="Mile Time"      col2="Run time MM.SS or a status code; cleared on archive" colors={colors} />
           <TwoColRow col1="Score"          col2="Auto-calculated — read only" colors={colors} />
         </View>
 
@@ -219,10 +278,23 @@ export default function QuickReferenceScreen() {
         <SectionHeader icon="⚙" title="SETTINGS SCREEN" colors={colors} />
         <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border, marginBottom: 2 }]}>
           <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
-            Access Settings from the bottom tab bar. All changes apply immediately.
+            Access Settings from the bottom tab bar. All changes apply immediately and persist between sessions.
           </Text>
         </View>
         <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingsBlock
+            icon="🎨"
+            title="Appearance"
+            colors={colors}
+            body={
+              <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
+                Choose between <Text style={{ color: colors.foreground, fontWeight: "600" }}>System</Text> (follows device setting),{" "}
+                <Text style={{ color: colors.foreground, fontWeight: "600" }}>Light</Text>, or{" "}
+                <Text style={{ color: colors.foreground, fontWeight: "600" }}>Dark</Text> mode. Preference is saved automatically.
+              </Text>
+            }
+          />
+          <View style={[styles.settingsDivider, { backgroundColor: colors.border }]} />
           <SettingsBlock
             icon="🎯"
             title="TTB-Based Scoring"
@@ -283,34 +355,82 @@ export default function QuickReferenceScreen() {
               </>
             }
           />
+          <View style={[styles.settingsDivider, { backgroundColor: colors.border }]} />
+          <SettingsBlock
+            icon="☁️"
+            title="Cloud Sync"
+            colors={colors}
+            body={
+              <>
+                <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
+                  Share your gradebook between devices using a sync code (4–12 uppercase letters/numbers).
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Push</Text>{"  "}Upload current data to the cloud under your code
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Pull</Text>{"  "}Download and restore data from your code
+                </Text>
+              </>
+            }
+          />
+          <View style={[styles.settingsDivider, { backgroundColor: colors.border }]} />
+          <SettingsBlock
+            icon="💾"
+            title="Local Backup"
+            colors={colors}
+            body={
+              <>
+                <Text style={[styles.settingsLine, { color: colors.mutedForeground }]}>
+                  Save a full JSON backup of all classes, rosters, run history, and settings to a file. Restore from a backup file at any time.
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Export Backup</Text>{"  "}Downloads a .json backup file
+                </Text>
+                <Text style={[styles.settingsBullet, { color: colors.foreground }]}>
+                  <Text style={styles.bold}>Import Backup</Text>{"  "}Restores everything from a backup file
+                </Text>
+              </>
+            }
+          />
         </View>
 
         {/* Import column names */}
         <SectionHeader icon="📥" title="IMPORT — ACCEPTED HEADERS" colors={colors} />
         <View style={[styles.table, { borderColor: colors.border }]}>
-          <TwoColHeader col1="Field" col2="Accepted Names" colors={colors} />
+          <TwoColHeader col1="Field" col2="Accepted Column Names" colors={colors} />
           <TwoColRow col1="Student ID"   col2="studentid, id, student_id" colors={colors} />
           <TwoColRow col1="Roll Call"    col2="rollcall, roll, number, #" colors={colors} />
           <TwoColRow col1="Last Name"    col2="lastname, last, surname" colors={colors} />
           <TwoColRow col1="First Name"   col2="firstname, first, given" colors={colors} />
           <TwoColRow col1="Time to Beat" col2="timetobeat, ttb, goal" colors={colors} />
           <TwoColRow col1="Mile Time"    col2="miletime, mile, time, runtime" colors={colors} />
+          <TwoColRow col1="Photo URL"    col2="photo, photo_url, image, picture, pic" colors={colors} />
+        </View>
+        <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
+            Both CSV and Excel (.xlsx) are accepted. Header names are case-insensitive and spaces/underscores are ignored when matching.
+          </Text>
         </View>
 
         {/* Tips */}
         <SectionHeader icon="💡" title="TIPS & REMINDERS" colors={colors} />
         <View style={[styles.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Tip text="Click any column header to sort; click again to reverse." colors={colors} />
-          <Tip text="Data saves automatically — no need to click Save." colors={colors} />
-          <Tip text="Export CSV regularly to back up each class period." colors={colors} />
+          <Tip text="Data saves automatically — no need to tap Save." colors={colors} />
+          <Tip text="Tap any column header to sort; tap again to reverse." colors={colors} />
+          <Tip text="Archive runs at the end of each run cycle — it clears times but keeps TTB." colors={colors} />
+          <Tip text="View a student's full run history by tapping their card." colors={colors} />
           <Tip text="Seconds must be 00–59 (e.g. 10.60 is not valid)." colors={colors} />
-          <Tip text="If CSV download fails, use Copy to Clipboard in the export modal." colors={colors} />
+          <Tip text="Use Cloud Sync to move data between your phone and a shared device." colors={colors} />
+          <Tip text="Export Run History at the end of a semester for a permanent record of all runs." colors={colors} />
+          <Tip text="If CSV download fails, use Copy to Clipboard in the Export screen." colors={colors} />
+          <Tip text="Student photos load from any public URL — add a photo column to your import CSV." colors={colors} />
         </View>
 
         {/* Footer */}
         <View style={[styles.footer, { borderColor: colors.border }]}>
           <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-            Scores auto-calculate on every keystroke  ·  Click any header to sort  ·  Data auto-saves  ·  Customize thresholds & labels in ⚙ Settings
+            Scores auto-calculate on every keystroke  ·  Archive runs between cycles  ·  Sync across devices  ·  Customize everything in ⚙ Settings
           </Text>
         </View>
       </ScrollView>
