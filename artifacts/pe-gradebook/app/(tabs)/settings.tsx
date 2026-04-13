@@ -19,7 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useGradebook } from "@/context/GradebookContext";
-import { useSettings } from "@/context/SettingsContext";
+import { useSettings, ThemePreference } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { DEFAULT_GRADING_CONFIG, formatMMSS } from "@/utils/grading";
 
@@ -106,7 +106,7 @@ function FieldRow({
 export default function SettingsScreen() {
   const colors = useColors() as Colors;
   const insets = useSafeAreaInsets();
-  const { gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults } = useSettings();
+  const { gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults, themePreference, setThemePreference } = useSettings();
   const { classes, activeClassId, restoreBackup } = useGradebook();
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -397,6 +397,43 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad + 40 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ── Appearance ── */}
+        <SectionHeader icon="🎨" title="APPEARANCE" colors={colors} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor }]}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground, marginBottom: 10 }]}>Theme</Text>
+          <View style={styles.themeRow}>
+            {(["system", "light", "dark"] as ThemePreference[]).map((opt) => {
+              const active = themePreference === opt;
+              const icon = opt === "system" ? "smartphone" : opt === "light" ? "sun" : "moon";
+              const label = opt === "system" ? "System" : opt === "light" ? "Light" : "Dark";
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setThemePreference(opt);
+                  }}
+                  style={[
+                    styles.themeOption,
+                    {
+                      backgroundColor: active ? colors.primary : colors.input,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Feather name={icon as any} size={16} color={active ? "#fff" : colors.mutedForeground} />
+                  <Text style={[styles.themeLabel, { color: active ? "#fff" : colors.mutedForeground }]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.cardNote, { color: colors.mutedForeground, marginTop: 8 }]}>
+            "System" follows your device's appearance setting automatically.
+          </Text>
+        </View>
+
         {/* ── TTB-based tiers ── */}
         <SectionHeader icon="🎯" title="TTB-BASED SCORING" colors={colors} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor }]}>
@@ -744,4 +781,23 @@ const styles = StyleSheet.create({
   backupBtnText: { flex: 1, gap: 2 },
   backupBtnTitle: { fontSize: 14, fontWeight: "600" },
   backupBtnHint: { fontSize: 11, lineHeight: 16 },
+
+  themeRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  themeLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });
