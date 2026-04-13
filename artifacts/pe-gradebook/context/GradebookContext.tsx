@@ -290,7 +290,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
           score: calcScore(r.mileTime, r.ttb, gradingConfig),
         };
         archived++;
-        return { ...r, runs: [record, ...r.runs] };
+        return { ...r, mileTime: "", runs: [record, ...r.runs] };
       }),
     }));
     return archived;
