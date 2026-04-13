@@ -36,7 +36,7 @@ export default function ExportScreen() {
     const dataRows = rows.map(r => {
       const score = calcScore(r.mileTime, r.ttb, gradingConfig);
       const sp = getSpecial(r.mileTime, gradingConfig);
-      const sv = sp ? sp.label : (score !== null ? score : "");
+      const sv = sp ? "Na" : (score !== null ? score : "");
       return [r.studentId, r.rollCall, r.lastName, r.firstName, r.ttb, r.mileTime, sv].map(escape).join(",");
     });
     return [headers.map(escape).join(","), ...dataRows].join("\n");
@@ -56,7 +56,7 @@ export default function ExportScreen() {
       const dataRows = rows.map(r => {
         const score = calcScore(r.mileTime, r.ttb, gradingConfig);
         const sp = getSpecial(r.mileTime, gradingConfig);
-        const sv = sp ? sp.label : (score !== null ? score : "");
+        const sv = sp ? "Na" : (score !== null ? score : "");
         return [r.studentId, r.rollCall, r.lastName, r.firstName, r.ttb, r.mileTime, sv];
       });
 
