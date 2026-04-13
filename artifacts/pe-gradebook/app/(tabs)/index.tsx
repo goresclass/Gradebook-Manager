@@ -156,7 +156,7 @@ function PeriodSwitcher({ colors }: PeriodSwitcherProps) {
 export default function GradebookScreen() {
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, withScores, stats, className, archiveRuns } = useGradebook();
+  const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, importMileTimes, withScores, stats, className, archiveRuns } = useGradebook();
 
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortField>("rollCall");
@@ -190,37 +190,76 @@ export default function GradebookScreen() {
     });
   }, [withScores, search, sortCol, sortDir]);
 
-  const handleImport = useCallback(async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      const name = (asset.name || "").toLowerCase();
-      if (!name.endsWith(".csv") && !name.endsWith(".txt") && !name.endsWith(".xlsx") && !name.endsWith(".xls")) {
-        Alert.alert("Unsupported File", "Please select a .csv or .txt file exported from a spreadsheet app.", [{ text: "OK" }]);
-        return;
-      }
-      const response = await fetch(asset.uri);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const text = await response.text();
-      if (!text || !text.trim()) {
-        Alert.alert("Import Failed", "The file appears to be empty.");
-        return;
-      }
-      const { count, error } = importCSV(text);
-      if (error) {
-        Alert.alert("Import Failed", error);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Imported", `${count} student${count !== 1 ? "s" : ""} imported successfully.`);
-      }
-    } catch {
-      Alert.alert("Import Error", "Could not read the selected file. Make sure it is a plain .csv file.");
+  const pickAndReadFile = useCallback(async (): Promise<string | null> => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.length) return null;
+    const asset = result.assets[0];
+    const name = (asset.name || "").toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".txt")) {
+      Alert.alert("Unsupported File", "Please select a .csv file.", [{ text: "OK" }]);
+      return null;
     }
-  }, [importCSV]);
+    const response = await fetch(asset.uri);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    if (!text?.trim()) {
+      Alert.alert("Import Failed", "The file appears to be empty.");
+      return null;
+    }
+    return text;
+  }, []);
+
+  const handleImport = useCallback(() => {
+    Alert.alert(
+      "Import CSV",
+      "What would you like to import?",
+      [
+        {
+          text: "Full Roster",
+          onPress: async () => {
+            try {
+              const text = await pickAndReadFile();
+              if (!text) return;
+              const { count, error } = importCSV(text);
+              if (error) {
+                Alert.alert("Import Failed", error);
+              } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert("Imported", `${count} student${count !== 1 ? "s" : ""} added to the roster.`);
+              }
+            } catch {
+              Alert.alert("Import Error", "Could not read the selected file.");
+            }
+          },
+        },
+        {
+          text: "Mile Times Only",
+          onPress: async () => {
+            try {
+              const text = await pickAndReadFile();
+              if (!text) return;
+              const { updated, notFound, error } = importMileTimes(text);
+              if (error) {
+                Alert.alert("Import Failed", error);
+              } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                const msg = notFound > 0
+                  ? `${updated} student${updated !== 1 ? "s" : ""} updated.\n${notFound} row${notFound !== 1 ? "s" : ""} in the file didn't match any student.`
+                  : `${updated} student${updated !== 1 ? "s" : ""} updated.`;
+                Alert.alert("Mile Times Imported", msg);
+              }
+            } catch {
+              Alert.alert("Import Error", "Could not read the selected file.");
+            }
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  }, [importCSV, importMileTimes, pickAndReadFile]);
 
   const handleArchiveRuns = () => {
     const withTime = rows.filter(r => r.mileTime.trim()).length;

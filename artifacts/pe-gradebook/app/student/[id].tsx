@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -64,18 +64,52 @@ function Field({
 function RunHistoryEntry({
   record,
   onDelete,
+  onUpdateLabel,
   colors,
 }: {
   record: RunRecord;
   onDelete: () => void;
+  onUpdateLabel: (label: string) => void;
   colors: Record<string, string>;
 }) {
   const cfg = record.score !== null ? SCORE_CFG[record.score] : null;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(record.label);
+
+  const commitLabel = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== record.label) {
+      onUpdateLabel(trimmed);
+    } else {
+      setDraft(record.label); // reset if empty or unchanged
+    }
+    setEditing(false);
+  };
 
   return (
     <View style={[styles.runRow, { borderColor: colors.border }]}>
       <View style={styles.runLeft}>
-        <Text style={[styles.runLabel, { color: colors.foreground }]}>{record.label}</Text>
+        {editing ? (
+          <TextInput
+            style={[styles.runLabelInput, { color: colors.foreground, borderColor: colors.primary }]}
+            value={draft}
+            onChangeText={setDraft}
+            onBlur={commitLabel}
+            onSubmitEditing={commitLabel}
+            autoFocus
+            autoCorrect={false}
+            returnKeyType="done"
+          />
+        ) : (
+          <TouchableOpacity
+            onPress={() => { setDraft(record.label); setEditing(true); }}
+            hitSlop={{ top: 6, bottom: 6, left: 0, right: 20 }}
+            style={styles.runLabelBtn}
+          >
+            <Text style={[styles.runLabel, { color: colors.foreground }]}>{record.label}</Text>
+            <Feather name="edit-2" size={10} color={colors.mutedForeground} style={{ marginLeft: 4, marginTop: 1 }} />
+          </TouchableOpacity>
+        )}
         <Text style={[styles.runTime, { color: colors.accent ?? colors.primary, fontFamily: "monospace" }]}>
           {record.mileTime}
         </Text>
@@ -110,7 +144,7 @@ export default function StudentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors() as Record<string, string>;
   const insets = useSafeAreaInsets();
-  const { rows, updateRow, deleteRow, deleteRunRecord } = useGradebook();
+  const { rows, updateRow, deleteRow, deleteRunRecord, updateRunRecord } = useGradebook();
   const { gradingConfig } = useSettings();
   const SPECIAL = buildSpecial(gradingConfig);
   const numId = parseInt(id, 10);
@@ -292,6 +326,7 @@ export default function StudentDetailScreen() {
                 key={rec.id}
                 record={rec}
                 onDelete={() => handleDeleteRun(rec.id)}
+                onUpdateLabel={label => updateRunRecord(row.id, rec.id, { label })}
                 colors={colors}
               />
             ))
@@ -402,7 +437,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   runLeft: { flex: 1, gap: 2 },
+  runLabelBtn: { flexDirection: "row", alignItems: "center" },
   runLabel: { fontSize: 13, fontWeight: "600" },
+  runLabelInput: {
+    fontSize: 13,
+    fontWeight: "600",
+    borderBottomWidth: 1.5,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    minWidth: 80,
+  },
   runTime: { fontSize: 12 },
   runRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   runScoreBadge: {

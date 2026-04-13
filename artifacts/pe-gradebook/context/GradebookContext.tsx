@@ -100,6 +100,7 @@ type GradebookContextType = {
   deleteRow: (id: number) => void;
   clearAll: () => void;
   importCSV: (text: string) => { count: number; error?: string };
+  importMileTimes: (text: string) => { updated: number; notFound: number; error?: string };
   withScores: StudentRowWithScore[];
   stats: {
     total: number;
@@ -111,6 +112,7 @@ type GradebookContextType = {
   // Run history
   archiveRuns: (label?: string) => number;
   deleteRunRecord: (studentId: number, runId: string) => void;
+  updateRunRecord: (studentId: number, runId: string, updates: Partial<Pick<RunRecord, "label" | "mileTime">>) => void;
   // Backup / restore
   restoreBackup: (classes: ClassRecord[], activeClassId: string) => void;
 };
@@ -305,6 +307,75 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [updateActiveClass]);
 
+  const updateRunRecord = useCallback((
+    studentId: number,
+    runId: string,
+    updates: Partial<Pick<RunRecord, "label" | "mileTime">>,
+  ) => {
+    updateActiveClass(c => ({
+      ...c,
+      rows: c.rows.map(r =>
+        r.id === studentId
+          ? { ...r, runs: r.runs.map(rec => rec.id === runId ? { ...rec, ...updates } : rec) }
+          : r
+      ),
+    }));
+  }, [updateActiveClass]);
+
+  const importMileTimes = useCallback((text: string): { updated: number; notFound: number; error?: string } => {
+    try {
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return { updated: 0, notFound: 0, error: "File appears empty" };
+
+      const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim());
+      const norm = (s: string) => s.toLowerCase().replace(/[\s_-]/g, "");
+      const findCol = (...keys: string[]) => {
+        const h = headers.find(h => keys.includes(norm(h)));
+        return h ? headers.indexOf(h) : -1;
+      };
+
+      const rollIdx  = findCol("roll", "rollcall", "rollno", "number", "#");
+      const idIdx    = findCol("studentid", "id", "student_id", "sid");
+      const timeIdx  = findCol("miletime", "time", "mile", "runtime", "milerun");
+
+      if (timeIdx === -1) return { updated: 0, notFound: 0, error: "Could not find a mile time column. Expected a header like: Roll, Mile Time" };
+      if (rollIdx === -1 && idIdx === -1) return { updated: 0, notFound: 0, error: "Could not find a Roll # or Student ID column to match students" };
+
+      const entries: { roll?: string; sid?: string; mileTime: string }[] = [];
+      for (const line of lines.slice(1)) {
+        const vals = line.split(",").map(v => v.replace(/"/g, "").trim());
+        const mileTime = vals[timeIdx]?.trim() ?? "";
+        if (!mileTime) continue;
+        entries.push({
+          roll: rollIdx >= 0 ? vals[rollIdx]?.trim() : undefined,
+          sid:  idIdx  >= 0 ? vals[idIdx]?.trim()  : undefined,
+          mileTime,
+        });
+      }
+
+      if (!entries.length) return { updated: 0, notFound: 0, error: "No data rows found in file" };
+
+      let updated = 0;
+      let notFound = 0;
+
+      updateActiveClass(c => {
+        const newRows = c.rows.map(r => {
+          const matchByRoll = entries.find(e => e.roll && e.roll === r.rollCall);
+          const matchBySid  = entries.find(e => e.sid  && e.sid  === r.studentId);
+          const match = matchByRoll ?? matchBySid;
+          if (match) { updated++; return { ...r, mileTime: match.mileTime }; }
+          return r;
+        });
+        notFound = entries.length - updated;
+        return { ...c, rows: newRows };
+      });
+
+      return { updated, notFound };
+    } catch {
+      return { updated: 0, notFound: 0, error: "Could not parse file" };
+    }
+  }, [updateActiveClass]);
+
   // ── Backup / restore ─────────────────────────────────────────────────────
   const restoreBackup = useCallback((newClasses: ClassRecord[], newActiveId: string) => {
     const safe = newClasses.map(c => ({
@@ -354,10 +425,12 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
         deleteRow,
         clearAll,
         importCSV,
+        importMileTimes,
         withScores,
         stats: { total: rows.length, graded: graded.length, special: special.length, avg, dist },
         archiveRuns,
         deleteRunRecord,
+        updateRunRecord,
         restoreBackup,
       }}
     >
