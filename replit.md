@@ -27,6 +27,12 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Export**: CSV + Excel (SheetJS `xlsx`) using expo-sharing; excel export uses `expo-file-system/legacy`
 - **Special codes**: MU / MED / ABS / EXC entered in Mile Time field; labels customizable via Settings
 - **ID generation**: `Date.now()` + counter, no uuid dependency
+- **Cloud sync**: `PUT /api/sync/:code` and `GET /api/sync/:code` on API server backed by `sync_records` table (Drizzle); settings screen has sync code input + Push/Pull buttons; sync code persisted in AsyncStorage key `pe_gb_sync_code_v1`
+- **Local backup**: Export/restore full JSON backup via expo-sharing / DocumentPicker (file-based, separate from cloud sync)
+
+## Database Schema
+
+- `sync_records`: syncCode (PK), data (JSONB), updatedAt (timestamptz) — stores cloud sync payloads keyed by user-chosen sync code
 
 ## Key Commands
 

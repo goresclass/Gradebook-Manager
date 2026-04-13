@@ -1,9 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -109,6 +110,118 @@ export default function SettingsScreen() {
   const { classes, activeClassId, restoreBackup } = useGradebook();
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  // ── Cloud sync state ─────────────────────────────────────────────────────
+  const [syncCode, setSyncCode] = useState("");
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem("pe_gb_sync_code_v1").then((v) => { if (v) setSyncCode(v); });
+    AsyncStorage.getItem("pe_gb_last_synced_v1").then((v) => { if (v) setLastSynced(v); });
+  }, []);
+
+  const saveSyncCode = (code: string) => {
+    setSyncCode(code);
+    AsyncStorage.setItem("pe_gb_sync_code_v1", code);
+  };
+
+  const getApiBase = () => {
+    if (typeof process !== "undefined" && process.env.EXPO_PUBLIC_DOMAIN) {
+      return `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+    }
+    return "http://localhost:8080/api";
+  };
+
+  const handleCloudPush = async () => {
+    const code = syncCode.trim().toUpperCase();
+    if (!code || code.length < 4) {
+      Alert.alert("Enter Sync Code", "Set a sync code (4–12 letters or numbers) before pushing.");
+      return;
+    }
+    setSyncBusy(true);
+    try {
+      const payload = {
+        app: "mile-run-grader",
+        appVersion: 2,
+        exportDate: new Date().toISOString(),
+        gradebook: { classes, activeClassId },
+        settings: { gradingConfig },
+      };
+      const res = await fetch(`${getApiBase()}/sync/${code}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      const now = new Date().toLocaleString();
+      setLastSynced(now);
+      AsyncStorage.setItem("pe_gb_last_synced_v1", now);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Synced!", `Your data is now saved in the cloud under code ${code}.`);
+    } catch (e) {
+      Alert.alert("Sync Failed", `Could not push to cloud: ${e instanceof Error ? e.message : "unknown error"}`);
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handleCloudPull = async () => {
+    const code = syncCode.trim().toUpperCase();
+    if (!code || code.length < 4) {
+      Alert.alert("Enter Sync Code", "Enter the sync code used when you last pushed data.");
+      return;
+    }
+    setSyncBusy(true);
+    try {
+      const res = await fetch(`${getApiBase()}/sync/${code}`);
+      if (res.status === 404) {
+        Alert.alert("Not Found", `No backup found for code ${code}. Double-check the code and try again.`);
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as { data: Record<string, unknown>; updatedAt: string };
+      const parsed = json.data as {
+        app?: string;
+        gradebook?: { classes: unknown[]; activeClassId: string };
+        settings?: { gradingConfig: unknown };
+      };
+      if (parsed.app !== "mile-run-grader" || !parsed.gradebook?.classes) {
+        Alert.alert("Invalid Data", "The cloud backup looks corrupted or incompatible.");
+        return;
+      }
+      const { classes: newClasses, activeClassId: newActiveId } = parsed.gradebook;
+      const totalStudents = (newClasses as { rows: unknown[] }[]).reduce((s, c) => s + c.rows.length, 0);
+      const savedAt = new Date(json.updatedAt).toLocaleString();
+      Alert.alert(
+        "Restore from Cloud?",
+        `Found ${newClasses.length} class${newClasses.length !== 1 ? "es" : ""}, ${totalStudents} student${totalStudents !== 1 ? "s" : ""} (saved ${savedAt}).\n\nThis will replace all current data.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Restore",
+            style: "destructive",
+            onPress: () => {
+              restoreBackup(newClasses as Parameters<typeof restoreBackup>[0], newActiveId);
+              if (parsed.settings?.gradingConfig) updateGradingConfig(parsed.settings.gradingConfig as Parameters<typeof updateGradingConfig>[0]);
+              const now = new Date().toLocaleString();
+              setLastSynced(now);
+              AsyncStorage.setItem("pe_gb_last_synced_v1", now);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert("Restored", "Your gradebook has been restored from the cloud.");
+            },
+          },
+        ]
+      );
+    } catch (e) {
+      Alert.alert("Pull Failed", `Could not fetch from cloud: ${e instanceof Error ? e.message : "unknown error"}`);
+    } finally {
+      setSyncBusy(false);
+    }
+  };
 
   // ── Backup handlers ───────────────────────────────────────────────────────
 
@@ -375,8 +488,63 @@ export default function SettingsScreen() {
           ))}
         </View>
 
+        {/* ── Cloud Sync ── */}
+        <SectionHeader icon="🔄" title="CLOUD SYNC" colors={colors} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor }]}>
+          <Text style={[styles.cardNote, { color: colors.mutedForeground }]}>
+            Push your data to the cloud and pull it back on any device. Pick a memorable code — anyone with the same code can overwrite it, so keep it private.
+          </Text>
+
+          {/* Sync code input */}
+          <View style={[styles.syncCodeRow, { borderBottomColor: borderColor, borderBottomWidth: 1 }]}>
+            <Feather name="key" size={15} color={colors.mutedForeground} style={{ marginRight: 8 }} />
+            <TextInput
+              style={[styles.syncCodeInput, { color: colors.foreground }]}
+              placeholder="Your sync code (e.g. SMITH5A)"
+              placeholderTextColor={colors.mutedForeground}
+              value={syncCode}
+              onChangeText={(t) => saveSyncCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+              autoCapitalize="characters"
+              maxLength={12}
+              editable={!syncBusy}
+            />
+            {syncCode.length > 0 && (
+              <TouchableOpacity onPress={() => saveSyncCode("")}>
+                <Feather name="x" size={15} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {lastSynced && (
+            <View style={[styles.syncLastRow, { borderBottomColor: borderColor, borderBottomWidth: 1 }]}>
+              <Feather name="check-circle" size={13} color="#22c55e" />
+              <Text style={[styles.syncLastText, { color: colors.mutedForeground }]}>Last synced {lastSynced}</Text>
+            </View>
+          )}
+
+          {/* Push / Pull */}
+          <View style={styles.syncButtonRow}>
+            <TouchableOpacity
+              onPress={handleCloudPush}
+              disabled={syncBusy}
+              style={[styles.syncBtn, styles.syncBtnPush, syncBusy && { opacity: 0.5 }]}
+            >
+              <Feather name="upload-cloud" size={16} color="#fff" />
+              <Text style={styles.syncBtnLabel}>Push to Cloud</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleCloudPull}
+              disabled={syncBusy}
+              style={[styles.syncBtn, styles.syncBtnPull, syncBusy && { opacity: 0.5 }]}
+            >
+              <Feather name="download-cloud" size={16} color="#fff" />
+              <Text style={styles.syncBtnLabel}>Pull from Cloud</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ── Cloud Backup ── */}
-        <SectionHeader icon="☁️" title="DATA BACKUP" colors={colors} />
+        <SectionHeader icon="☁️" title="LOCAL BACKUP (FILE)" colors={colors} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor }]}>
           <Text style={[styles.cardNote, { color: colors.mutedForeground }]}>
             Export your entire gradebook (all periods, all run history) as a JSON file you can save to
@@ -519,6 +687,44 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   resetText: { color: "#f87171", fontSize: 14, fontWeight: "600" },
+
+  syncCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  syncCodeInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 1,
+  },
+  syncLastRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  syncLastText: { fontSize: 11 },
+  syncButtonRow: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  syncBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  syncBtnPush: { backgroundColor: "#0e7490" },
+  syncBtnPull: { backgroundColor: "#7c3aed" },
+  syncBtnLabel: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
   backupBtn: {
     flexDirection: "row",
