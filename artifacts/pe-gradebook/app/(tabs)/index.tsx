@@ -440,20 +440,33 @@ export default function GradebookScreen() {
         <PeriodSwitcher colors={colors} />
 
         {/* Search */}
-        <View style={[styles.searchBar, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
-          <Feather name="search" size={15} color="#94a3b8" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search students…"
-            placeholderTextColor="#64748b"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search ? (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <Feather name="x" size={15} color="#94a3b8" />
-            </TouchableOpacity>
-          ) : null}
+        <View style={styles.searchRow}>
+          <View style={[styles.searchBar, { backgroundColor: "rgba(255,255,255,0.08)", flex: 1 }]}>
+            <Feather name="search" size={15} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search students…"
+              placeholderTextColor="#64748b"
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => { setSearch(""); setGlobalSearch(false); }}>
+                <Feather name="x" size={15} color="#94a3b8" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            onPress={() => { Haptics.selectionAsync(); setGlobalSearch(g => !g); }}
+            style={[
+              styles.globeBtn,
+              globalSearch
+                ? { backgroundColor: colors.primary }
+                : { backgroundColor: "rgba(255,255,255,0.08)" },
+            ]}
+          >
+            <Feather name="globe" size={15} color={globalSearch ? "#fff" : "#94a3b8"} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -478,45 +491,93 @@ export default function GradebookScreen() {
         ))}
       </ScrollView>
 
-      {/* Sort buttons */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.sortScroll, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
-        contentContainerStyle={styles.sortContent}
-      >
-        <SortButton col="rollCall" label="Roll #" />
-        <SortButton col="lastName" label="Last Name" />
-        <SortButton col="firstName" label="First Name" />
-        <SortButton col="score" label="Score" />
-      </ScrollView>
+      {/* Sort buttons — hidden during global search */}
+      {!(globalSearch && search.trim()) && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.sortScroll, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
+          contentContainerStyle={styles.sortContent}
+        >
+          <SortButton col="rollCall" label="Roll #" />
+          <SortButton col="lastName" label="Last Name" />
+          <SortButton col="firstName" label="First Name" />
+          <SortButton col="score" label="Score" />
+        </ScrollView>
+      )}
+
+      {/* Global search info bar */}
+      {globalSearch && search.trim() ? (
+        <View style={[styles.globalBar, { backgroundColor: colors.secondary, borderBottomColor: colors.border }]}>
+          <Feather name="globe" size={12} color={colors.primary} />
+          <Text style={[styles.globalBarText, { color: colors.mutedForeground }]}>
+            Searching all {classes.length} period{classes.length !== 1 ? "s" : ""} · {globalSorted.length} result{globalSorted.length !== 1 ? "s" : ""}
+          </Text>
+        </View>
+      ) : null}
 
       {/* List */}
       <FlatList
         style={{ flex: 1 }}
-        data={sorted}
-        keyExtractor={item => String(item.id)}
+        data={globalSearch && search.trim() ? globalSorted : sorted}
+        keyExtractor={item =>
+          globalSearch && search.trim()
+            ? `${(item as typeof globalSorted[number]).classId}-${item.id}`
+            : String(item.id)
+        }
         contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad + 100 }]}
-        renderItem={({ item, index }) => (
-          <StudentCard
-            row={item}
-            index={index}
-            onUpdate={updateRow}
-            onDelete={deleteRow}
-            onPress={row => router.push({ pathname: "/student/[id]", params: { id: String(row.id) } })}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          const isGlobal = !!(globalSearch && search.trim());
+          const gItem = item as typeof globalSorted[number];
+          return (
+            <View>
+              {isGlobal && (
+                <View style={[styles.periodBadgeRow, { backgroundColor: colors.background }]}>
+                  <View style={[styles.periodBadge, { backgroundColor: colors.primary + "22" }]}>
+                    <Text style={[styles.periodBadgeText, { color: colors.primary }]}>{gItem.classLabel}</Text>
+                  </View>
+                </View>
+              )}
+              <StudentCard
+                row={item}
+                index={index}
+                onUpdate={isGlobal ? () => {} : updateRow}
+                onDelete={isGlobal ? () => {} : deleteRow}
+                onPress={row => {
+                  if (isGlobal) {
+                    setActiveClass(gItem.classId);
+                    setTimeout(() => router.push({ pathname: "/student/[id]", params: { id: String(row.id) } }), 50);
+                  } else {
+                    router.push({ pathname: "/student/[id]", params: { id: String(row.id) } });
+                  }
+                }}
+              />
+            </View>
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Feather name="users" size={40} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.mutedForeground }]}>No students yet</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Tap the + button above to add your first student
-            </Text>
+            {globalSearch && search.trim() ? (
+              <>
+                <Feather name="search" size={40} color={colors.mutedForeground} />
+                <Text style={[styles.emptyTitle, { color: colors.mutedForeground }]}>No students found</Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  No matches across any period for "{search}"
+                </Text>
+              </>
+            ) : (
+              <>
+                <Feather name="users" size={40} color={colors.mutedForeground} />
+                <Text style={[styles.emptyTitle, { color: colors.mutedForeground }]}>No students yet</Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  Tap the + button above to add your first student
+                </Text>
+              </>
+            )}
           </View>
         }
         ListFooterComponent={
-          sorted.length > 0 ? (
+          sorted.length > 0 && !(globalSearch && search.trim()) ? (
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); addRow(); }}
               style={[styles.addRowBtn, { borderColor: colors.border }]}
@@ -806,6 +867,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
 
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  globeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  globalBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+  },
+  globalBarText: { fontSize: 12 },
+  periodBadgeRow: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
+  periodBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  periodBadgeText: { fontSize: 11, fontWeight: "700" },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
