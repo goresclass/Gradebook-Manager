@@ -8,6 +8,7 @@ const STORAGE_KEY = "pe_gb_settings_v1";
 const THEME_KEY   = "pe_gb_theme_v1";
 
 export type ThemePreference = "system" | "light" | "dark";
+export type SwipeOrder = "roll" | "firstName" | "lastName";
 
 type SettingsContextType = {
   gradingConfig: GradingConfig;
@@ -17,7 +18,11 @@ type SettingsContextType = {
   settingsReady: boolean;
   themePreference: ThemePreference;
   setThemePreference: (pref: ThemePreference) => void;
+  swipeOrder: SwipeOrder;
+  setSwipeOrder: (order: SwipeOrder) => void;
 };
+
+const SWIPE_ORDER_KEY = "pe_gb_swipe_order_v1";
 
 const SettingsContext = createContext<SettingsContextType>({
   gradingConfig: DEFAULT_GRADING_CONFIG,
@@ -27,12 +32,15 @@ const SettingsContext = createContext<SettingsContextType>({
   settingsReady: false,
   themePreference: "system",
   setThemePreference: () => {},
+  swipeOrder: "roll",
+  setSwipeOrder: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [gradingConfig, setGradingConfig] = useState<GradingConfig>(DEFAULT_GRADING_CONFIG);
   const [settingsReady, setSettingsReady] = useState(false);
   const [themePreference, setThemeState] = useState<ThemePreference>("system");
+  const [swipeOrder, setSwipeState] = useState<SwipeOrder>("roll");
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then(raw => {
@@ -53,6 +61,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (raw === "light" || raw === "dark" || raw === "system") {
         setThemeState(raw);
         Appearance.setColorScheme(raw === "system" ? null : raw);
+      }
+    });
+
+    AsyncStorage.getItem(SWIPE_ORDER_KEY).then(raw => {
+      if (raw === "roll" || raw === "firstName" || raw === "lastName") {
+        setSwipeState(raw);
       }
     });
   }, []);
@@ -94,10 +108,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(THEME_KEY, pref).catch(() => {});
   }, []);
 
+  const setSwipeOrder = useCallback((order: SwipeOrder) => {
+    setSwipeState(order);
+    AsyncStorage.setItem(SWIPE_ORDER_KEY, order).catch(() => {});
+  }, []);
+
   return (
     <SettingsContext.Provider value={{
       gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults, settingsReady,
       themePreference, setThemePreference,
+      swipeOrder, setSwipeOrder,
     }}>
       {children}
     </SettingsContext.Provider>

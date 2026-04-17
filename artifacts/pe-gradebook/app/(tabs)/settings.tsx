@@ -19,7 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useGradebook } from "@/context/GradebookContext";
-import { useSettings, ThemePreference } from "@/context/SettingsContext";
+import { useSettings, ThemePreference, SwipeOrder } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { DEFAULT_GRADING_CONFIG, formatMMSS } from "@/utils/grading";
 
@@ -106,7 +106,7 @@ function FieldRow({
 export default function SettingsScreen() {
   const colors = useColors() as Colors;
   const insets = useSafeAreaInsets();
-  const { gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults, themePreference, setThemePreference } = useSettings();
+  const { gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults, themePreference, setThemePreference, swipeOrder, setSwipeOrder } = useSettings();
   const { classes, activeClassId, restoreBackup } = useGradebook();
   const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -431,6 +431,45 @@ export default function SettingsScreen() {
           </View>
           <Text style={[styles.cardNote, { color: colors.mutedForeground, marginTop: 8 }]}>
             "System" follows your device's appearance setting automatically.
+          </Text>
+        </View>
+
+        {/* ── Swipe Order ── */}
+        <SectionHeader icon="👆" title="SWIPE ORDER" colors={colors} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor }]}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground, marginBottom: 10 }]}>Navigate students by</Text>
+          <View style={styles.themeRow}>
+            {([
+              { key: "roll",      label: "Roll #",     icon: "hash" },
+              { key: "firstName", label: "First Name",  icon: "user" },
+              { key: "lastName",  label: "Last Name",   icon: "users" },
+            ] as { key: SwipeOrder; label: string; icon: string }[]).map(({ key, label, icon }) => {
+              const active = swipeOrder === key;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSwipeOrder(key);
+                  }}
+                  style={[
+                    styles.themeOption,
+                    {
+                      backgroundColor: active ? colors.primary : colors.input,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Feather name={icon as any} size={16} color={active ? "#fff" : colors.mutedForeground} />
+                  <Text style={[styles.themeLabel, { color: active ? "#fff" : colors.mutedForeground }]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.cardNote, { color: colors.mutedForeground, marginTop: 8 }]}>
+            Sets the order used when swiping or tapping the arrows on a student's detail screen.
           </Text>
         </View>
 

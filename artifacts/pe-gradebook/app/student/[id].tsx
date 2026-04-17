@@ -151,7 +151,7 @@ export default function StudentDetailScreen() {
   const [addingRun, setAddingRun] = useState(false);
   const [newRunLabel, setNewRunLabel] = useState("");
   const [newRunTime, setNewRunTime] = useState("");
-  const { gradingConfig } = useSettings();
+  const { gradingConfig, swipeOrder } = useSettings();
   const SPECIAL = buildSpecial(gradingConfig);
 
   // ── Local current-student state (decoupled from URL so we can animate) ──
@@ -170,9 +170,27 @@ export default function StudentDetailScreen() {
   const slideX = useRef(new Animated.Value(0)).current;
   const animating = useRef(false);
 
-  const currentIndex = rows.findIndex(r => r.id === currentId);
-  const prevRow = currentIndex > 0 ? rows[currentIndex - 1] : null;
-  const nextRow = currentIndex >= 0 && currentIndex < rows.length - 1 ? rows[currentIndex + 1] : null;
+  // Sort rows according to the chosen swipe order
+  const sortedRows = React.useMemo(() => {
+    const copy = [...rows];
+    if (swipeOrder === "firstName") {
+      copy.sort((a, b) =>
+        (a.firstName || "").localeCompare(b.firstName || "") ||
+        (a.lastName  || "").localeCompare(b.lastName  || "")
+      );
+    } else if (swipeOrder === "lastName") {
+      copy.sort((a, b) =>
+        (a.lastName  || "").localeCompare(b.lastName  || "") ||
+        (a.firstName || "").localeCompare(b.firstName || "")
+      );
+    }
+    // "roll" keeps original insertion order (rows array order)
+    return copy;
+  }, [rows, swipeOrder]);
+
+  const currentIndex = sortedRows.findIndex(r => r.id === currentId);
+  const prevRow = currentIndex > 0 ? sortedRows[currentIndex - 1] : null;
+  const nextRow = currentIndex >= 0 && currentIndex < sortedRows.length - 1 ? sortedRows[currentIndex + 1] : null;
 
   // Keep refs up-to-date so the PanResponder (created once) always reads fresh values
   const prevRowRef = useRef(prevRow);
@@ -368,9 +386,9 @@ export default function StudentDetailScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {[row.firstName, row.lastName].filter(Boolean).join(" ") || "Edit Student"}
           </Text>
-          {rows.length > 1 && (
+          {sortedRows.length > 1 && (
             <Text style={styles.headerCounter}>
-              {currentIndex + 1} / {rows.length}
+              {currentIndex + 1} / {sortedRows.length}
             </Text>
           )}
         </View>
