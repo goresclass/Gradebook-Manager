@@ -1,10 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -153,6 +154,38 @@ export default function StudentDetailScreen() {
   const numId = parseInt(id, 10);
   const row = rows.find(r => r.id === numId);
 
+  // ── Swipe navigation ────────────────────────────────────────────────────
+  const currentIndex = rows.findIndex(r => r.id === numId);
+  const prevRow = currentIndex > 0 ? rows[currentIndex - 1] : null;
+  const nextRow = currentIndex >= 0 && currentIndex < rows.length - 1 ? rows[currentIndex + 1] : null;
+
+  const navigateTo = (targetId: number) => {
+    Haptics.selectionAsync();
+    router.replace(`/student/${targetId}` as never);
+  };
+
+  const swipeRef = useRef({ startX: 0, startY: 0 });
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => {
+        const absX = Math.abs(gs.dx);
+        const absY = Math.abs(gs.dy);
+        return absX > 12 && absX > absY * 1.8;
+      },
+      onPanResponderGrant: (_, gs) => {
+        swipeRef.current = { startX: gs.x0, startY: gs.y0 };
+      },
+      onPanResponderRelease: (_, gs) => {
+        const { dx, vx } = gs;
+        if ((dx < -60 || vx < -0.4) && nextRow) {
+          navigateTo(nextRow.id);
+        } else if ((dx > 60 || vx > 0.4) && prevRow) {
+          navigateTo(prevRow.id);
+        }
+      },
+    })
+  ).current;
+
   const handleChange = React.useCallback(
     (field: keyof StudentRow, val: string) => updateRow(numId, field, val),
     [numId, updateRow]
@@ -269,15 +302,46 @@ export default function StudentDetailScreen() {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      {...panResponder.panHandlers}
     >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.header, paddingTop: topPad + 14 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color="#f1f5f9" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {[row.firstName, row.lastName].filter(Boolean).join(" ") || "Edit Student"}
-        </Text>
+
+        {/* Prev arrow */}
+        <TouchableOpacity
+          onPress={() => prevRow && navigateTo(prevRow.id)}
+          style={[styles.navBtn, !prevRow && styles.navBtnDisabled]}
+          disabled={!prevRow}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+        >
+          <Feather name="chevron-left" size={20} color={prevRow ? "#f1f5f9" : "#475569"} />
+        </TouchableOpacity>
+
+        {/* Name + counter */}
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {[row.firstName, row.lastName].filter(Boolean).join(" ") || "Edit Student"}
+          </Text>
+          {rows.length > 1 && (
+            <Text style={styles.headerCounter}>
+              {currentIndex + 1} / {rows.length}
+            </Text>
+          )}
+        </View>
+
+        {/* Next arrow */}
+        <TouchableOpacity
+          onPress={() => nextRow && navigateTo(nextRow.id)}
+          style={[styles.navBtn, !nextRow && styles.navBtnDisabled]}
+          disabled={!nextRow}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+        >
+          <Feather name="chevron-right" size={20} color={nextRow ? "#f1f5f9" : "#475569"} />
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={handleMoveToPeriod} style={styles.moveBtn}>
           <Feather name="corner-right-up" size={18} color="#94a3b8" />
         </TouchableOpacity>
@@ -472,14 +536,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    gap: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    gap: 4,
   },
-  backBtn: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: "600", color: "#f1f5f9" },
-  moveBtn: { padding: 4 },
-  deleteBtn: { padding: 4 },
+  backBtn: { padding: 6 },
+  navBtn: { padding: 6 },
+  navBtnDisabled: { opacity: 0.3 },
+  headerCenter: { flex: 1, alignItems: "center", paddingHorizontal: 2 },
+  headerTitle: { fontSize: 15, fontWeight: "600", color: "#f1f5f9", textAlign: "center" },
+  headerCounter: { fontSize: 11, color: "#64748b", marginTop: 1 },
+  moveBtn: { padding: 6 },
+  deleteBtn: { padding: 6 },
 
   scroll: { padding: 16, gap: 12 },
 
