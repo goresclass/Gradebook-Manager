@@ -174,7 +174,13 @@ export default function StudentDetailScreen() {
   const prevRow = currentIndex > 0 ? rows[currentIndex - 1] : null;
   const nextRow = currentIndex >= 0 && currentIndex < rows.length - 1 ? rows[currentIndex + 1] : null;
 
-  const navigateTo = (targetId: number, direction: "next" | "prev") => {
+  // Keep refs up-to-date so the PanResponder (created once) always reads fresh values
+  const prevRowRef = useRef(prevRow);
+  const nextRowRef = useRef(nextRow);
+  useEffect(() => { prevRowRef.current = prevRow; }, [prevRow]);
+  useEffect(() => { nextRowRef.current = nextRow; }, [nextRow]);
+
+  const navigateTo = React.useCallback((targetId: number, direction: "next" | "prev") => {
     if (animating.current) return;
     animating.current = true;
     Haptics.selectionAsync();
@@ -200,7 +206,10 @@ export default function StudentDetailScreen() {
         useNativeDriver: true,
       }).start(() => { animating.current = false; });
     });
-  };
+  }, [SCREEN_W, slideX]);
+
+  const navigateToRef = useRef(navigateTo);
+  useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -211,10 +220,10 @@ export default function StudentDetailScreen() {
       },
       onPanResponderRelease: (_, gs) => {
         const { dx, vx } = gs;
-        if ((dx < -60 || vx < -0.4) && nextRow) {
-          navigateTo(nextRow.id, "next");
-        } else if ((dx > 60 || vx > 0.4) && prevRow) {
-          navigateTo(prevRow.id, "prev");
+        if ((dx < -60 || vx < -0.4) && nextRowRef.current) {
+          navigateToRef.current(nextRowRef.current.id, "next");
+        } else if ((dx > 60 || vx > 0.4) && prevRowRef.current) {
+          navigateToRef.current(prevRowRef.current.id, "prev");
         }
       },
     })
