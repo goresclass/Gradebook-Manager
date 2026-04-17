@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
+  Dimensions,
   KeyboardAvoidingView,
   PanResponder,
   Platform,
@@ -151,20 +153,55 @@ export default function StudentDetailScreen() {
   const [newRunTime, setNewRunTime] = useState("");
   const { gradingConfig } = useSettings();
   const SPECIAL = buildSpecial(gradingConfig);
-  const numId = parseInt(id, 10);
-  const row = rows.find(r => r.id === numId);
 
-  // ── Swipe navigation ────────────────────────────────────────────────────
-  const currentIndex = rows.findIndex(r => r.id === numId);
+  // ── Local current-student state (decoupled from URL so we can animate) ──
+  const [currentId, setCurrentId] = useState(() => parseInt(id, 10));
+  const row = rows.find(r => r.id === currentId);
+
+  // Keep in sync if URL id ever changes externally (e.g. deep link)
+  useEffect(() => {
+    const parsed = parseInt(id, 10);
+    if (parsed !== currentId) setCurrentId(parsed);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // ── Swipe / directional animation ───────────────────────────────────────
+  const SCREEN_W = Dimensions.get("window").width;
+  const slideX = useRef(new Animated.Value(0)).current;
+  const animating = useRef(false);
+
+  const currentIndex = rows.findIndex(r => r.id === currentId);
   const prevRow = currentIndex > 0 ? rows[currentIndex - 1] : null;
   const nextRow = currentIndex >= 0 && currentIndex < rows.length - 1 ? rows[currentIndex + 1] : null;
 
-  const navigateTo = (targetId: number) => {
+  const navigateTo = (targetId: number, direction: "next" | "prev") => {
+    if (animating.current) return;
+    animating.current = true;
     Haptics.selectionAsync();
-    router.replace(`/student/${targetId}` as never);
+
+    const outTo  = direction === "next" ? -SCREEN_W : SCREEN_W;
+    const inFrom = direction === "next" ?  SCREEN_W : -SCREEN_W;
+
+    // Slide current content out, swap student, slide new content in
+    Animated.timing(slideX, {
+      toValue: outTo,
+      duration: 160,
+      useNativeDriver: true,
+    }).start(() => {
+      setCurrentId(targetId);
+      setAddingRun(false);
+      setNewRunLabel("");
+      setNewRunTime("");
+      slideX.setValue(inFrom);
+      Animated.spring(slideX, {
+        toValue: 0,
+        tension: 120,
+        friction: 16,
+        useNativeDriver: true,
+      }).start(() => { animating.current = false; });
+    });
   };
 
-  const swipeRef = useRef({ startX: 0, startY: 0 });
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gs) => {
@@ -172,23 +209,20 @@ export default function StudentDetailScreen() {
         const absY = Math.abs(gs.dy);
         return absX > 12 && absX > absY * 1.8;
       },
-      onPanResponderGrant: (_, gs) => {
-        swipeRef.current = { startX: gs.x0, startY: gs.y0 };
-      },
       onPanResponderRelease: (_, gs) => {
         const { dx, vx } = gs;
         if ((dx < -60 || vx < -0.4) && nextRow) {
-          navigateTo(nextRow.id);
+          navigateTo(nextRow.id, "next");
         } else if ((dx > 60 || vx > 0.4) && prevRow) {
-          navigateTo(prevRow.id);
+          navigateTo(prevRow.id, "prev");
         }
       },
     })
   ).current;
 
   const handleChange = React.useCallback(
-    (field: keyof StudentRow, val: string) => updateRow(numId, field, val),
-    [numId, updateRow]
+    (field: keyof StudentRow, val: string) => updateRow(currentId, field, val),
+    [currentId, updateRow]
   );
 
   if (!row) {
@@ -312,7 +346,7 @@ export default function StudentDetailScreen() {
 
         {/* Prev arrow */}
         <TouchableOpacity
-          onPress={() => prevRow && navigateTo(prevRow.id)}
+          onPress={() => prevRow && navigateTo(prevRow.id, "prev")}
           style={[styles.navBtn, !prevRow && styles.navBtnDisabled]}
           disabled={!prevRow}
           hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
@@ -334,7 +368,7 @@ export default function StudentDetailScreen() {
 
         {/* Next arrow */}
         <TouchableOpacity
-          onPress={() => nextRow && navigateTo(nextRow.id)}
+          onPress={() => nextRow && navigateTo(nextRow.id, "next")}
           style={[styles.navBtn, !nextRow && styles.navBtnDisabled]}
           disabled={!nextRow}
           hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
@@ -350,6 +384,7 @@ export default function StudentDetailScreen() {
         </TouchableOpacity>
       </View>
 
+      <Animated.View style={[styles.slideWrapper, { transform: [{ translateX: slideX }] }]}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad + 40 }]}
         keyboardShouldPersistTaps="handled"
@@ -523,12 +558,14 @@ export default function StudentDetailScreen() {
           </Text>
         </View>
       </ScrollView>
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, overflow: "hidden" },
+  slideWrapper: { flex: 1 },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   notFoundText: { fontSize: 16 },
   backLink: { fontSize: 15, fontWeight: "600", marginTop: 4 },
