@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -116,6 +117,13 @@ export default function SettingsScreen() {
   const [syncBusy, setSyncBusy] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
 
+  // ── Cloud view modal state ────────────────────────────────────────────────
+  type CloudClass = { id: string; name: string; rows: { firstName?: string; lastName?: string; mileTime?: string; ttb?: string; runs?: unknown[] }[]; archivedRuns?: unknown[][] };
+  type CloudPayload = { app: string; exportDate: string; gradebook: { classes: CloudClass[]; activeClassId: string }; settings?: { gradingConfig?: unknown } };
+  const [viewVisible, setViewVisible] = useState(false);
+  const [viewBusy, setViewBusy] = useState(false);
+  const [viewData, setViewData] = useState<{ payload: CloudPayload; savedAt: string; code: string } | null>(null);
+
   useEffect(() => {
     AsyncStorage.getItem("pe_gb_sync_code_v1").then((v) => { if (v) setSyncCode(v); });
     AsyncStorage.getItem("pe_gb_last_synced_v1").then((v) => { if (v) setLastSynced(v); });
@@ -220,6 +228,52 @@ export default function SettingsScreen() {
       Alert.alert("Pull Failed", `Could not fetch from cloud: ${e instanceof Error ? e.message : "unknown error"}`);
     } finally {
       setSyncBusy(false);
+    }
+  };
+
+  // ── Cloud view handlers ───────────────────────────────────────────────────
+
+  const handleCloudView = async () => {
+    const code = syncCode.trim().toUpperCase();
+    if (!code || code.length < 4) {
+      Alert.alert("Enter Sync Code", "Set a sync code first so we know what to look up.");
+      return;
+    }
+    setViewBusy(true);
+    try {
+      const res = await fetch(`${getApiBase()}/sync/${code}`);
+      if (res.status === 404) {
+        Alert.alert("Nothing Found", `No data saved under code ${code} yet.`);
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as { data: CloudPayload; updatedAt: string };
+      setViewData({ payload: json.data, savedAt: new Date(json.updatedAt).toLocaleString(), code });
+      setViewVisible(true);
+    } catch (e) {
+      Alert.alert("Fetch Failed", `Could not load cloud data: ${e instanceof Error ? e.message : "unknown error"}`);
+    } finally {
+      setViewBusy(false);
+    }
+  };
+
+  const handleViewDownload = async () => {
+    if (!viewData) return;
+    try {
+      const json = JSON.stringify(viewData.payload, null, 2);
+      if (Platform.OS === "web") {
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `cloud-backup-${viewData.code}.json`; a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      const path = `${FileSystem.cacheDirectory}cloud-backup-${viewData.code}.json`;
+      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(path, { mimeType: "application/json", dialogTitle: "Save Cloud Backup" });
+    } catch (e) {
+      Alert.alert("Download Failed", `${e instanceof Error ? e.message : "unknown error"}`);
     }
   };
 
@@ -617,6 +671,18 @@ export default function SettingsScreen() {
               <Text style={styles.syncBtnLabel}>Pull from Cloud</Text>
             </TouchableOpacity>
           </View>
+
+          {/* View stored data */}
+          <TouchableOpacity
+            onPress={handleCloudView}
+            disabled={viewBusy || syncBusy}
+            style={[styles.viewCloudBtn, { borderColor, opacity: (viewBusy || syncBusy) ? 0.5 : 1 }]}
+          >
+            <Feather name="eye" size={15} color={colors.mutedForeground} />
+            <Text style={[styles.viewCloudBtnLabel, { color: colors.mutedForeground }]}>
+              {viewBusy ? "Loading…" : "View Stored Data"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Cloud Backup ── */}
@@ -671,6 +737,86 @@ export default function SettingsScreen() {
           <Text style={styles.resetText}>Reset All to Defaults</Text>
         </TouchableOpacity>
       </ScrollView>
+      {/* ── Cloud View Modal ── */}
+      <Modal
+        visible={viewVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setViewVisible(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          {/* Modal header */}
+          <View style={[styles.modalHeader, { backgroundColor: colors.header, paddingTop: insets.top + 14 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>Cloud Snapshot</Text>
+              {viewData && (
+                <Text style={styles.modalSub}>Code: {viewData.code} · Saved {viewData.savedAt}</Text>
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={handleViewDownload}
+              style={[styles.modalDownloadBtn, { backgroundColor: "#0e7490" }]}
+            >
+              <Feather name="download" size={15} color="#fff" />
+              <Text style={styles.modalDownloadLabel}>Save File</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setViewVisible(false)} style={styles.modalCloseBtn}>
+              <Feather name="x" size={20} color="#94a3b8" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            {viewData && viewData.payload.gradebook?.classes?.map((cls) => {
+              const studentCount = cls.rows?.length ?? 0;
+              const archiveCount = cls.archivedRuns?.length ?? 0;
+              return (
+                <View key={cls.id} style={[styles.modalClassCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {/* Class header */}
+                  <View style={[styles.modalClassHeader, { backgroundColor: colors.header }]}>
+                    <Feather name="users" size={14} color="#94a3b8" />
+                    <Text style={styles.modalClassName}>{cls.name}</Text>
+                    <Text style={styles.modalClassMeta}>
+                      {studentCount} student{studentCount !== 1 ? "s" : ""}
+                      {archiveCount > 0 ? ` · ${archiveCount} archived run${archiveCount !== 1 ? "s" : ""}` : ""}
+                    </Text>
+                  </View>
+
+                  {/* Students */}
+                  {(cls.rows ?? []).map((student, idx) => {
+                    const name = [student.firstName, student.lastName].filter(Boolean).join(" ") || "Unnamed";
+                    const runCount = (student.runs ?? []).length;
+                    return (
+                      <View
+                        key={idx}
+                        style={[styles.modalStudentRow, { borderTopColor: colors.border, borderTopWidth: idx === 0 ? 0 : 1 }]}
+                      >
+                        <View style={[styles.modalRollBadge, { backgroundColor: colors.secondary }]}>
+                          <Text style={[styles.modalRollText, { color: colors.mutedForeground }]}>{idx + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.modalStudentName, { color: colors.foreground }]}>{name}</Text>
+                          {(student.ttb || runCount > 0) && (
+                            <Text style={[styles.modalStudentMeta, { color: colors.mutedForeground }]}>
+                              {[student.ttb ? `TTB: ${student.ttb}` : null, runCount > 0 ? `${runCount} run${runCount !== 1 ? "s" : ""}` : null].filter(Boolean).join(" · ")}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={[styles.modalMileTime, { color: student.mileTime ? colors.foreground : colors.mutedForeground, fontFamily: "monospace" }]}>
+                          {student.mileTime || "—"}
+                        </Text>
+                      </View>
+                    );
+                  })}
+
+                  {studentCount === 0 && (
+                    <Text style={[styles.modalEmpty, { color: colors.mutedForeground }]}>No students in this period</Text>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -839,4 +985,73 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+
+  viewCloudBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+  },
+  viewCloudBtnLabel: { fontSize: 13, fontWeight: "600" },
+
+  modalContainer: { flex: 1 },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    gap: 10,
+  },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: "#f1f5f9" },
+  modalSub: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
+  modalDownloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  modalDownloadLabel: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  modalCloseBtn: { padding: 4 },
+  modalScroll: { padding: 14, gap: 12 },
+
+  modalClassCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  modalClassHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalClassName: { flex: 1, fontSize: 14, fontWeight: "700", color: "#f1f5f9" },
+  modalClassMeta: { fontSize: 11, color: "#94a3b8" },
+
+  modalStudentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  modalRollBadge: {
+    width: 26, height: 26, borderRadius: 6,
+    alignItems: "center", justifyContent: "center",
+  },
+  modalRollText: { fontSize: 11, fontWeight: "700" },
+  modalStudentName: { fontSize: 14, fontWeight: "500" },
+  modalStudentMeta: { fontSize: 11, marginTop: 1 },
+  modalMileTime: { fontSize: 13, fontWeight: "600" },
+  modalEmpty: { fontSize: 13, paddingHorizontal: 14, paddingVertical: 12, textAlign: "center" },
 });
