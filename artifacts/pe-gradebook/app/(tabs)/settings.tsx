@@ -315,12 +315,34 @@ export default function SettingsScreen() {
 
   const handleImportBackup = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
-      if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      const response = await fetch(asset.uri);
-      if (!response.ok) throw new Error("fetch failed");
-      const text = await response.text();
+      let text: string;
+      if (Platform.OS === "web") {
+        text = await new Promise<string>((resolve, reject) => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = ".json,application/json";
+          input.onchange = (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) { reject(new Error("No file selected")); return; }
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target?.result as string);
+            reader.onerror = () => reject(new Error("FileReader error"));
+            reader.readAsText(file);
+          };
+          input.addEventListener("cancel", () => resolve("__cancelled__"));
+          document.body.appendChild(input);
+          input.click();
+          setTimeout(() => { if (document.body.contains(input)) document.body.removeChild(input); }, 0);
+        });
+        if (text === "__cancelled__") return;
+      } else {
+        const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
+        if (result.canceled || !result.assets?.length) return;
+        const asset = result.assets[0];
+        const response = await fetch(asset.uri);
+        if (!response.ok) throw new Error("fetch failed");
+        text = await response.text();
+      }
       const parsed = JSON.parse(text);
       if (parsed.app !== "mile-run-grader" || !parsed.gradebook?.classes) {
         Alert.alert("Invalid File", "This file does not appear to be a Mile Run Grader backup.");

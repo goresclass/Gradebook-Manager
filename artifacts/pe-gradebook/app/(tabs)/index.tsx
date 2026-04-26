@@ -160,6 +160,7 @@ export default function GradebookScreen() {
   const insets = useSafeAreaInsets();
   const { rows, ready, addRow, deleteRow, updateRow, clearAll, importCSV, importMileTimes, withScores, stats, className, archiveRuns, renameRunLabel, classes, setActiveClass } = useGradebook();
   const [showDatesModal, setShowDatesModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const [search, setSearch] = useState("");
   const [globalSearch, setGlobalSearch] = useState(false);
@@ -220,6 +221,33 @@ export default function GradebookScreen() {
   }, [classes, search]);
 
   const pickAndReadFile = useCallback(async (): Promise<string | null> => {
+    if (Platform.OS === "web") {
+      return new Promise<string | null>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".csv,.txt,text/csv,text/plain";
+        input.onchange = (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (!file) { resolve(null); return; }
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const text = ev.target?.result as string;
+            if (!text?.trim()) {
+              Alert.alert("Import Failed", "The file appears to be empty.");
+              resolve(null);
+            } else {
+              resolve(text);
+            }
+          };
+          reader.onerror = () => { Alert.alert("Import Error", "Could not read the file."); resolve(null); };
+          reader.readAsText(file);
+        };
+        input.addEventListener("cancel", () => resolve(null));
+        document.body.appendChild(input);
+        input.click();
+        setTimeout(() => { if (document.body.contains(input)) document.body.removeChild(input); }, 0);
+      });
+    }
     const result = await DocumentPicker.getDocumentAsync({
       type: "*/*",
       copyToCacheDirectory: true,
@@ -241,7 +269,48 @@ export default function GradebookScreen() {
     return text;
   }, []);
 
+  const doImportRoster = useCallback(async () => {
+    setShowImportModal(false);
+    try {
+      const text = await pickAndReadFile();
+      if (!text) return;
+      const { count, error } = importCSV(text);
+      if (error) {
+        Alert.alert("Import Failed", error);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Imported", `${count} student${count !== 1 ? "s" : ""} added to the roster.`);
+      }
+    } catch {
+      Alert.alert("Import Error", "Could not read the selected file.");
+    }
+  }, [importCSV, pickAndReadFile]);
+
+  const doImportTimes = useCallback(async () => {
+    setShowImportModal(false);
+    try {
+      const text = await pickAndReadFile();
+      if (!text) return;
+      const { updated, notFound, error } = importMileTimes(text);
+      if (error) {
+        Alert.alert("Import Failed", error);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const msg = notFound > 0
+          ? `${updated} student${updated !== 1 ? "s" : ""} updated.\n${notFound} row${notFound !== 1 ? "s" : ""} didn't match any student.`
+          : `${updated} student${updated !== 1 ? "s" : ""} updated.`;
+        Alert.alert("Mile Times Imported", msg);
+      }
+    } catch {
+      Alert.alert("Import Error", "Could not read the selected file.");
+    }
+  }, [importMileTimes, pickAndReadFile]);
+
   const handleImport = useCallback(() => {
+    if (Platform.OS === "web") {
+      setShowImportModal(true);
+      return;
+    }
     Alert.alert(
       "Import CSV",
       "What would you like to import?",
@@ -597,6 +666,30 @@ export default function GradebookScreen() {
         onRename={renameRunLabel}
         onClose={() => setShowDatesModal(false)}
       />
+
+      {/* ── Web Import Type Modal ── */}
+      <Modal
+        visible={showImportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImportModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 24, width: 300, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 16 }}>
+            <Text style={{ color: colors.foreground, fontSize: 17, fontWeight: "700", marginBottom: 6 }}>Import CSV</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 14, marginBottom: 20 }}>What would you like to import?</Text>
+            <TouchableOpacity onPress={doImportRoster} style={{ backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 13, marginBottom: 10 }}>
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "600", fontSize: 15 }}>Full Roster</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={doImportTimes} style={{ backgroundColor: "#7c3aed", borderRadius: 10, paddingVertical: 13, marginBottom: 10 }}>
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "600", fontSize: 15 }}>Mile Times Only</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowImportModal(false)} style={{ paddingVertical: 10 }}>
+              <Text style={{ color: colors.mutedForeground, textAlign: "center", fontSize: 15 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
