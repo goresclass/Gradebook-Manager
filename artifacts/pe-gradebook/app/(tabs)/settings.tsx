@@ -321,18 +321,21 @@ export default function SettingsScreen() {
           const input = document.createElement("input");
           input.type = "file";
           input.accept = ".json,application/json";
+          input.style.cssText = "position:fixed;top:-200px;left:-200px;opacity:0;";
+          const cleanup = () => {
+            if (document.body.contains(input)) document.body.removeChild(input);
+          };
           input.onchange = (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) { reject(new Error("No file selected")); return; }
+            if (!file) { cleanup(); resolve("__cancelled__"); return; }
             const reader = new FileReader();
-            reader.onload = (ev) => resolve(ev.target?.result as string);
-            reader.onerror = () => reject(new Error("FileReader error"));
+            reader.onload = (ev) => { cleanup(); resolve(ev.target?.result as string); };
+            reader.onerror = () => { cleanup(); reject(new Error("FileReader error")); };
             reader.readAsText(file);
           };
-          input.addEventListener("cancel", () => resolve("__cancelled__"));
+          input.addEventListener("cancel", () => { cleanup(); resolve("__cancelled__"); });
           document.body.appendChild(input);
           input.click();
-          setTimeout(() => { if (document.body.contains(input)) document.body.removeChild(input); }, 0);
         });
         if (text === "__cancelled__") return;
       } else {

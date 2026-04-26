@@ -226,12 +226,17 @@ export default function GradebookScreen() {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = ".csv,.txt,text/csv,text/plain";
+        input.style.cssText = "position:fixed;top:-200px;left:-200px;opacity:0;";
+        const cleanup = () => {
+          if (document.body.contains(input)) document.body.removeChild(input);
+        };
         input.onchange = (e) => {
           const file = (e.target as HTMLInputElement).files?.[0];
-          if (!file) { resolve(null); return; }
+          if (!file) { cleanup(); resolve(null); return; }
           const reader = new FileReader();
           reader.onload = (ev) => {
             const text = ev.target?.result as string;
+            cleanup();
             if (!text?.trim()) {
               Alert.alert("Import Failed", "The file appears to be empty.");
               resolve(null);
@@ -239,13 +244,12 @@ export default function GradebookScreen() {
               resolve(text);
             }
           };
-          reader.onerror = () => { Alert.alert("Import Error", "Could not read the file."); resolve(null); };
+          reader.onerror = () => { cleanup(); Alert.alert("Import Error", "Could not read the file."); resolve(null); };
           reader.readAsText(file);
         };
-        input.addEventListener("cancel", () => resolve(null));
+        input.addEventListener("cancel", () => { cleanup(); resolve(null); });
         document.body.appendChild(input);
         input.click();
-        setTimeout(() => { if (document.body.contains(input)) document.body.removeChild(input); }, 0);
       });
     }
     const result = await DocumentPicker.getDocumentAsync({
