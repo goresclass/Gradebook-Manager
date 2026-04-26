@@ -370,7 +370,7 @@ export default function GradebookScreen() {
     );
   };
 
-  const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
+  const topPad = Platform.OS === "web" ? Math.max(insets.top, 20) : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : 0;
 
   if (!ready) {

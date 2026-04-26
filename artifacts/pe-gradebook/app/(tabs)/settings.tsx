@@ -109,7 +109,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { gradingConfig, updateGradingConfig, updateSpecialLabel, resetToDefaults, themePreference, setThemePreference, swipeOrder, setSwipeOrder } = useSettings();
   const { classes, activeClassId, restoreBackup } = useGradebook();
-  const topPad = Platform.OS === "web" ? 67 : Math.max(insets.top, 80);
+  const topPad = Platform.OS === "web" ? Math.max(insets.top, 20) : Math.max(insets.top, 80);
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   // ── Cloud sync state ─────────────────────────────────────────────────────
