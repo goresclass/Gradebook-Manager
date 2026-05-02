@@ -114,7 +114,7 @@ type GradebookContextType = {
   // Run history
   archiveRuns: (label?: string) => number;
   deleteRunRecord: (studentId: number, runId: string) => void;
-  updateRunRecord: (studentId: number, runId: string, updates: Partial<Pick<RunRecord, "label" | "mileTime">>) => void;
+  updateRunRecord: (studentId: number, runId: string, updates: Partial<Pick<RunRecord, "label" | "mileTime" | "score">>) => void;
   renameRunLabel: (oldLabel: string, newLabel: string) => void;
   addRunRecord: (studentId: number, label: string, mileTime: string) => void;
   moveStudentToPeriod: (studentId: number, targetClassId: string) => boolean;
@@ -396,7 +396,7 @@ export function GradebookProvider({ children }: { children: React.ReactNode }) {
   const updateRunRecord = useCallback((
     studentId: number,
     runId: string,
-    updates: Partial<Pick<RunRecord, "label" | "mileTime">>,
+    updates: Partial<Pick<RunRecord, "label" | "mileTime" | "score">>,
   ) => {
     updateActiveClass(c => ({
       ...c,

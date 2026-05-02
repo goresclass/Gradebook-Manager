@@ -68,35 +68,55 @@ function RunHistoryEntry({
   record,
   onDelete,
   onUpdateLabel,
+  onUpdateTime,
   colors,
 }: {
   record: RunRecord;
   onDelete: () => void;
   onUpdateLabel: (label: string) => void;
+  onUpdateTime: (mileTime: string) => void;
   colors: Record<string, string>;
 }) {
   const cfg = record.score !== null ? SCORE_CFG[record.score] : null;
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(record.label);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(record.label);
+  const [editingTime, setEditingTime] = useState(false);
+  const [timeDraft, setTimeDraft] = useState(record.mileTime);
+  const [timeError, setTimeError] = useState(false);
 
   const commitLabel = () => {
-    const trimmed = draft.trim();
+    const trimmed = labelDraft.trim();
     if (trimmed && trimmed !== record.label) {
       onUpdateLabel(trimmed);
     } else {
-      setDraft(record.label); // reset if empty or unchanged
+      setLabelDraft(record.label);
     }
-    setEditing(false);
+    setEditingLabel(false);
+  };
+
+  const commitTime = () => {
+    const trimmed = timeDraft.trim();
+    const secs = parseMMSS(trimmed);
+    if (secs !== null && trimmed !== record.mileTime) {
+      setTimeError(false);
+      onUpdateTime(formatMMSS(secs));
+    } else if (secs === null) {
+      setTimeError(true);
+      setTimeDraft(record.mileTime);
+    } else {
+      setTimeDraft(record.mileTime);
+    }
+    setEditingTime(false);
   };
 
   return (
     <View style={[styles.runRow, { borderColor: colors.border }]}>
       <View style={styles.runLeft}>
-        {editing ? (
+        {editingLabel ? (
           <TextInput
             style={[styles.runLabelInput, { color: colors.foreground, borderColor: colors.primary }]}
-            value={draft}
-            onChangeText={setDraft}
+            value={labelDraft}
+            onChangeText={setLabelDraft}
             onBlur={commitLabel}
             onSubmitEditing={commitLabel}
             autoFocus
@@ -105,7 +125,7 @@ function RunHistoryEntry({
           />
         ) : (
           <TouchableOpacity
-            onPress={() => { setDraft(record.label); setEditing(true); }}
+            onPress={() => { setLabelDraft(record.label); setEditingLabel(true); }}
             hitSlop={{ top: 6, bottom: 6, left: 0, right: 20 }}
             style={styles.runLabelBtn}
           >
@@ -113,9 +133,32 @@ function RunHistoryEntry({
             <Feather name="edit-2" size={10} color={colors.mutedForeground} style={{ marginLeft: 4, marginTop: 1 }} />
           </TouchableOpacity>
         )}
-        <Text style={[styles.runTime, { color: colors.accent ?? colors.primary, fontFamily: "monospace" }]}>
-          {(() => { const s = parseMMSS(record.mileTime); return s !== null ? formatMMSS(s) : record.mileTime; })()}
-        </Text>
+        {editingTime ? (
+          <TextInput
+            style={[styles.runTimeInput, { color: colors.accent ?? colors.primary, borderColor: timeError ? "#ef4444" : colors.primary }]}
+            value={timeDraft}
+            onChangeText={t => { setTimeDraft(t); setTimeError(false); }}
+            onBlur={commitTime}
+            onSubmitEditing={commitTime}
+            autoFocus
+            autoCorrect={false}
+            keyboardType="numbers-and-punctuation"
+            returnKeyType="done"
+            placeholder="M:SS"
+            placeholderTextColor={colors.mutedForeground}
+          />
+        ) : (
+          <TouchableOpacity
+            onPress={() => { setTimeDraft(record.mileTime); setEditingTime(true); }}
+            hitSlop={{ top: 6, bottom: 6, left: 0, right: 20 }}
+            style={styles.runLabelBtn}
+          >
+            <Text style={[styles.runTime, { color: colors.accent ?? colors.primary, fontFamily: "monospace" }]}>
+              {(() => { const s = parseMMSS(record.mileTime); return s !== null ? formatMMSS(s) : record.mileTime; })()}
+            </Text>
+            <Feather name="edit-2" size={10} color={colors.mutedForeground} style={{ marginLeft: 4, marginTop: 1 }} />
+          </TouchableOpacity>
+        )}
       </View>
       <View style={styles.runRight}>
         {record.score !== null ? (
@@ -510,6 +553,10 @@ export default function StudentDetailScreen() {
                 record={rec}
                 onDelete={() => handleDeleteRun(rec.id)}
                 onUpdateLabel={label => updateRunRecord(row.id, rec.id, { label })}
+                onUpdateTime={mileTime => {
+                  const newScore = calcScore(mileTime, row.ttb, gradingConfig);
+                  updateRunRecord(row.id, rec.id, { mileTime, score: newScore });
+                }}
                 colors={colors}
               />
             ))
@@ -743,6 +790,15 @@ const styles = StyleSheet.create({
     minWidth: 80,
   },
   runTime: { fontSize: 17, fontWeight: "600" },
+  runTimeInput: {
+    fontSize: 17,
+    fontWeight: "600",
+    fontFamily: "monospace",
+    borderBottomWidth: 1.5,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    minWidth: 70,
+  },
   runRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   runScoreBadge: {
     minWidth: 40,
