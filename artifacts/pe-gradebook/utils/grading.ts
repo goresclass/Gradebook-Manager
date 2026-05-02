@@ -140,6 +140,36 @@ export const SCORE_CFG: Record<number, ScoreConfig> = {
   50:  { bgKey: "score50bg",  fgKey: "score50fg",  barKey: "score50bar",  label: "\u2265 16:00 / other" },
 };
 
+// ── Personal best ──────────────────────────────────────────────────────────
+
+export type BestTimeResult = {
+  time: string;       // formatted MM:SS string
+  secs: number;       // raw seconds (for comparison)
+  label: string;      // "Current" or the run date label
+  isCurrent: boolean; // true if the best time is the live mileTime field
+};
+
+export function getBestMileTime(
+  row: { mileTime: string; runs: { mileTime: string; label: string }[] }
+): BestTimeResult | null {
+  const candidates: { time: string; secs: number; label: string; isCurrent: boolean }[] = [];
+
+  const curSecs = parseMMSS(row.mileTime);
+  if (curSecs !== null) {
+    candidates.push({ time: row.mileTime, secs: curSecs, label: "Current", isCurrent: true });
+  }
+
+  for (const run of row.runs) {
+    const s = parseMMSS(run.mileTime);
+    if (s !== null) {
+      candidates.push({ time: run.mileTime, secs: s, label: run.label, isCurrent: false });
+    }
+  }
+
+  if (!candidates.length) return null;
+  return candidates.reduce((best, c) => (c.secs < best.secs ? c : best));
+}
+
 // ── Utilities ──────────────────────────────────────────────────────────────
 
 export function formatMMSS(totalSeconds: number): string {
