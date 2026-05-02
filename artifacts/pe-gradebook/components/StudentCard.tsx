@@ -127,6 +127,14 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
             ) : (
               <Text style={[styles.noTime, { color: colors.mutedForeground }]}>No time entered</Text>
             )}
+            {showBest ? (
+              <View style={[styles.timePill, styles.bestPill]}>
+                <Feather name="award" size={11} color="#d97706" />
+                <Text style={[styles.timeText, { color: "#d97706" }]}>
+                  PR {best!.time}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -198,6 +206,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
+  },
+  bestPill: {
+    backgroundColor: "rgba(217,119,6,0.1)",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   timeText: {
     fontSize: 12,

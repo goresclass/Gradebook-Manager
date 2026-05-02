@@ -348,6 +348,30 @@ export default function ExportScreen() {
         {/* Semester history */}
         <View style={[styles.actionsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.actionsTitle, { color: colors.mutedForeground }]}>Semester Records</Text>
+
+          {/* Best times */}
+          <TouchableOpacity
+            onPress={handleBestTimesExport}
+            style={[styles.actionRow, { borderColor: colors.border }]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#fef3c7" }]}>
+              <Feather name="award" size={18} color="#d97706" />
+            </View>
+            <View style={styles.actionText}>
+              <View style={styles.actionLabelRow}>
+                <Text style={[styles.actionLabel, { color: colors.foreground }]}>Export Best Mile Times</Text>
+                <View style={[styles.badge, { backgroundColor: "#d97706" }]}>
+                  <Text style={styles.badgeText}>PR</Text>
+                </View>
+              </View>
+              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
+                Each student's personal best across all recorded runs
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+
+          {/* Full history */}
           <TouchableOpacity
             onPress={handleHistoryExport}
             style={[styles.actionRow, styles.lastActionRow, { borderColor: colors.border }]}
