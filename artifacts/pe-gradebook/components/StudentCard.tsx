@@ -61,8 +61,7 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
   const { gradingConfig } = useSettings();
   const score = calcScore(row.mileTime, row.ttb, gradingConfig);
   const sp = getSpecial(row.mileTime, gradingConfig);
-  const best = row.runs.length > 0 ? getBestMileTime(row) : null;
-  const showBest = best && !best.isCurrent;
+  const best = getBestMileTime(row);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -117,6 +116,16 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
                 </Text>
               </View>
             ) : null}
+            {best ? (
+              <View style={[styles.timePill, styles.bestPill]}>
+                <Feather name="award" size={11} color="#d97706" />
+                <Text style={[styles.timeText, { color: "#d97706" }]}>
+                  PR: {best.time}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.timeRow}>
             {row.mileTime ? (
               <View style={styles.timePill}>
                 <Feather name="activity" size={11} color={colors.accent} />
@@ -127,14 +136,6 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
             ) : (
               <Text style={[styles.noTime, { color: colors.mutedForeground }]}>No time entered</Text>
             )}
-            {showBest ? (
-              <View style={[styles.timePill, styles.bestPill]}>
-                <Feather name="award" size={11} color="#d97706" />
-                <Text style={[styles.timeText, { color: "#d97706" }]}>
-                  PR {best!.time}
-                </Text>
-              </View>
-            ) : null}
           </View>
         </View>
 
