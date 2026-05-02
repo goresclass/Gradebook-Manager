@@ -61,6 +61,8 @@ export function StudentCard({ row, index, onUpdate, onDelete, onPress }: Props) 
   const { gradingConfig } = useSettings();
   const score = calcScore(row.mileTime, row.ttb, gradingConfig);
   const sp = getSpecial(row.mileTime, gradingConfig);
+  const best = row.runs.length > 0 ? getBestMileTime(row) : null;
+  const showBest = best && !best.isCurrent;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {

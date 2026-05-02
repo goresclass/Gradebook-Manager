@@ -141,6 +141,63 @@ export default function ExportScreen() {
     }
   };
 
+  // ── Best mile times export ────────────────────────────────────────────────
+  const handleBestTimesExport = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const headers = ["Class", "Roll Call", "Last Name", "First Name", "Student ID", "TTB", "Best Time", "Best Score", "Run Date"];
+      const dataRows: string[] = [];
+
+      for (const cls of classes) {
+        for (const r of cls.rows) {
+          const best = getBestMileTime(r);
+          if (!best) continue;
+          const bestScore = calcScore(best.time, r.ttb, gradingConfig);
+          const sp = getSpecial(best.time, gradingConfig);
+          const scoreVal = sp ? "Na" : (bestScore !== null ? bestScore : "");
+          dataRows.push(
+            [cls.name, r.rollCall, r.lastName, r.firstName, r.studentId, r.ttb, best.time, scoreVal, best.isCurrent ? "Current" : best.label]
+              .map(escape).join(",")
+          );
+        }
+      }
+
+      if (!dataRows.length) {
+        Alert.alert("No Data", "No students have any recorded times yet.");
+        return;
+      }
+
+      const csvData = [headers.map(escape).join(","), ...dataRows].join("\n");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `best_mile_times_${dateStr}.csv`;
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([csvData], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        const path = (FileSystem.cacheDirectory ?? "") + fileName;
+        await FileSystem.writeAsStringAsync(path, csvData, { encoding: FileSystem.EncodingType.UTF8 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Save Best Times CSV" });
+        } else {
+          Alert.alert("Sharing not available", "Your device does not support file sharing.");
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Export Failed", "Could not generate the best times CSV.");
+    }
+  };
+
   // ── Semester history export ───────────────────────────────────────────────
   const handleHistoryExport = async () => {
     try {
