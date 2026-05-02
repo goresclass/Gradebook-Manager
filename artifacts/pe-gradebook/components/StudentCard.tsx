@@ -15,7 +15,7 @@ import { useColors } from "@/hooks/useColors";
 import { StudentRow } from "@/context/GradebookContext";
 import { useSettings } from "@/context/SettingsContext";
 import { ScoreBadge } from "@/components/ScoreBadge";
-import { calcScore, getSpecial } from "@/utils/grading";
+import { calcScore, getSpecial, getBestMileTime } from "@/utils/grading";
 
 type Props = {
   row: StudentRow;

@@ -21,7 +21,7 @@ import * as XLSX from "xlsx";
 import { useGradebook } from "@/context/GradebookContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
-import { SCORE_CFG, calcScore, getSpecial } from "@/utils/grading";
+import { SCORE_CFG, calcScore, getSpecial, getBestMileTime } from "@/utils/grading";
 
 export default function ExportScreen() {
   const colors = useColors() as Record<string, string>;
