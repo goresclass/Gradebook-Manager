@@ -1,146 +1,95 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useState } from "react";
+import { LayoutList, BookOpen, Settings } from "lucide-react";
 
-import { modules as discoveredModules } from "./.generated/mockup-components";
+import { SettingsProvider } from "./contexts/SettingsContext";
+import { GradebookProvider } from "./contexts/GradebookContext";
+import { GradebookTab } from "./components/GradebookTab";
+import { StudentDetail } from "./components/StudentDetail";
+import { QuickReference } from "./components/QuickReference";
+import { SettingsTab } from "./components/SettingsTab";
+import { ExportView } from "./components/ExportView";
 
-type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
+type Tab = "gradebook" | "reference" | "settings";
+type SubView = { type: "student"; id: number } | { type: "export" } | null;
 
-function _resolveComponent(
-  mod: Record<string, unknown>,
-  name: string,
-): ComponentType | undefined {
-  const fns = Object.values(mod).filter(
-    (v) => typeof v === "function",
-  ) as ComponentType[];
-  return (
-    (mod.default as ComponentType) ||
-    (mod.Preview as ComponentType) ||
-    (mod[name] as ComponentType) ||
-    fns[fns.length - 1]
-  );
-}
+function GradebookApp() {
+  const [activeTab, setActiveTab] = useState<Tab>("gradebook");
+  const [subView, setSubView] = useState<SubView>(null);
 
-function PreviewRenderer({
-  componentPath,
-  modules,
-}: {
-  componentPath: string;
-  modules: ModuleMap;
-}) {
-  const [Component, setComponent] = useState<ComponentType | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const openStudent = (id: number) => setSubView({ type: "student", id });
+  const openExport = () => setSubView({ type: "export" });
+  const closeSubView = () => setSubView(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    setComponent(null);
-    setError(null);
-
-    async function loadComponent(): Promise<void> {
-      const key = `./components/mockups/${componentPath}.tsx`;
-      const loader = modules[key];
-      if (!loader) {
-        setError(`No component found at ${componentPath}.tsx`);
-        return;
+  // Render main content
+  const renderContent = () => {
+    // Sub-views overlay the tab content
+    if (subView) {
+      if (subView.type === "student") {
+        return <StudentDetail studentId={subView.id} onBack={closeSubView} />;
       }
-
-      try {
-        const mod = await loader();
-        if (cancelled) {
-          return;
-        }
-        const name = componentPath.split("/").pop()!;
-        const comp = _resolveComponent(mod, name);
-        if (!comp) {
-          setError(
-            `No exported React component found in ${componentPath}.tsx\n\nMake sure the file has at least one exported function component.`,
-          );
-          return;
-        }
-        setComponent(() => comp);
-      } catch (e) {
-        if (cancelled) {
-          return;
-        }
-
-        const message = e instanceof Error ? e.message : String(e);
-        setError(`Failed to load preview.\n${message}`);
+      if (subView.type === "export") {
+        return <ExportView onBack={closeSubView} />;
       }
     }
 
-    void loadComponent();
+    switch (activeTab) {
+      case "gradebook":
+        return <GradebookTab onOpenStudent={openStudent} onOpenExport={openExport} />;
+      case "reference":
+        return <QuickReference />;
+      case "settings":
+        return <SettingsTab />;
+    }
+  };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [componentPath, modules]);
+  const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
+    { id: "gradebook", icon: <LayoutList size={20} />, label: "Gradebook" },
+    { id: "reference", icon: <BookOpen size={20} />, label: "Reference" },
+    { id: "settings",  icon: <Settings size={20} />,  label: "Settings"  },
+  ];
 
-  if (error) {
-    return (
-      <pre style={{ color: "red", padding: "2rem", fontFamily: "system-ui" }}>
-        {error}
-      </pre>
-    );
-  }
-
-  if (!Component) return null;
-
-  return <Component />;
-}
-
-function getBasePath(): string {
-  return import.meta.env.BASE_URL.replace(/\/$/, "");
-}
-
-function getPreviewExamplePath(): string {
-  const basePath = getBasePath();
-  return `${basePath}/preview/ComponentName`;
-}
-
-function Gallery() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-3">
-          Component Preview Server
-        </h1>
-        <p className="text-gray-500 mb-4">
-          This server renders individual components for the workspace canvas.
-        </p>
-        <p className="text-sm text-gray-400">
-          Access component previews at{" "}
-          <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
-            {getPreviewExamplePath()}
-          </code>
-        </p>
+    <div className="flex flex-col h-screen max-w-2xl mx-auto">
+      {/* Main content */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {renderContent()}
       </div>
+
+      {/* Bottom tab bar — hidden during sub-views */}
+      {!subView && (
+        <div className="bg-[#0c1527] border-t border-white/10 flex-shrink-0">
+          <div className="flex">
+            {tabs.map(tab => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors
+                    ${active ? "text-primary" : "text-slate-500 hover:text-slate-300"}`}
+                >
+                  {tab.icon}
+                  <span className={`text-xs font-medium ${active ? "text-primary" : ""}`}>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function getPreviewPath(): string | null {
-  const basePath = getBasePath();
-  const { pathname } = window.location;
-  const local =
-    basePath && pathname.startsWith(basePath)
-      ? pathname.slice(basePath.length) || "/"
-      : pathname;
-  const match = local.match(/^\/preview\/(.+)$/);
-  return match ? match[1] : null;
-}
+import React from "react";
 
 function App() {
-  const previewPath = getPreviewPath();
-
-  if (previewPath) {
-    return (
-      <PreviewRenderer
-        componentPath={previewPath}
-        modules={discoveredModules}
-      />
-    );
-  }
-
-  return <Gallery />;
+  return (
+    <SettingsProvider>
+      <GradebookProvider>
+        <GradebookApp />
+      </GradebookProvider>
+    </SettingsProvider>
+  );
 }
 
 export default App;
